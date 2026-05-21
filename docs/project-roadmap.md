@@ -1,13 +1,16 @@
 # EZWAY Ops v2 — Project Roadmap
 
 > **NGUỒN SỰ THẬT DUY NHẤT về tiến độ.** Mỗi phiên làm việc: đọc file này trước.
-> Cập nhật cuối: 2026-05-21
+> Cập nhật cuối: 2026-05-21 (đã xong phase Auth)
 > (Các file `plans/*.md` đã LỖI THỜI — bỏ qua, không phản ánh thực tế.)
 
 ## Khởi động mỗi ngày
 1. Mở **Docker Desktop** → đợi container `ezway-postgres` tự lên (port 5433).
 2. `npm run dev`
 3. Nếu vừa đổi schema lần trước → restart dev server để nạp Prisma client mới.
+4. Đăng nhập tại `/login`. Tài khoản admin: `admin@ezway.local` / `EZWay@2026`
+   (nên đổi mật khẩu ở `/admin/users`). Reset mật khẩu bất kỳ qua CLI:
+   `npx tsx prisma/set-password.ts <email> <mật khẩu>`.
 
 ## ✅ Đã hoàn thành (CRUD đầy đủ, lint + build pass)
 
@@ -24,18 +27,24 @@
 | Lệnh lấy hàng | `/admin/pickups` | Gán tài xế, đổi trạng thái |
 | Kho vật tư | `/admin/supplies` | Nhập/Xuất/Kiểm kê + lịch sử |
 | Chi phí thành lập | `/admin/startup-expenses` | Tổng hợp + tự gợi ý nhóm theo từ khóa |
+| Tài khoản | `/admin/users` | CRUD tài khoản, gán role, đặt/reset mật khẩu (chỉ ADMIN) |
 
 **Tích hợp:** Đơn ↔ Lệnh lấy hàng · Đơn ↔ Kho (tự trừ tồn khi tạo đơn)
 
-**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`
+**Auth:** đăng nhập email + mật khẩu băm (bcryptjs) + session JWT-trong-cookie (jose).
+`proxy.ts` chặn `/admin/*` nếu chưa đăng nhập; layout admin `requireUser()`; nav ẩn
+mục ADMIN-only theo role. `lib/auth` có `getCurrentUser / requireUser / requireRole`.
+Roles: `ADMIN, STAFF, SALE, DRIVER`.
+
+**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`, `add_sale_role_and_password`
 
 ## ⬜ Chưa làm / để sau
 
-- [ ] **Auth + phân quyền** — VIỆC TIẾP THEO. Kế hoạch chi tiết: `docs/auth-plan.md`.
-      Chốt: role SALE trên User; làm session tối giản; làm trong PHIÊN MỚI (budget sạch).
-- [ ] **Sales portal** — sau Auth. Thống kê doanh thu/lợi nhuận theo sale + BXH
-      (góc nhìn sale: BXH ẩn lợi nhuận người khác). Xem `docs/auth-plan.md`.
-- [ ] **Driver portal** `/driver/*` — sau auth.
+- [ ] **Sales portal** — VIỆC TIẾP THEO. `Order` thêm `salesUserId` (FK User role
+      SALE); form tạo đơn chọn sale (hoặc tự gán nếu người tạo là SALE); trang admin
+      thống kê doanh thu + lợi nhuận theo sale + BXH; dashboard cá nhân cho SALE,
+      BXH doanh thu ẩn lợi nhuận người khác. Xem `docs/auth-plan.md`.
+- [ ] **Driver portal** `/driver/*` — sau Sales portal.
 - [ ] Test tự động (Playwright / Vitest) — chưa setup.
 - [ ] Ảnh lệnh lấy hàng + lịch sử trạng thái pickup (đã bỏ ở scope lean).
 - [ ] Báo cáo tiêu hao vật tư theo kỳ (tháng/quý).
@@ -46,6 +55,8 @@
 - Đổi schema → BẮT BUỘC restart `npm run dev`.
 - ESLint còn 1 warning ở `data-table.tsx` (giới hạn thư viện TanStack — không phải lỗi).
 - Mã chi phí thành lập là `CP-xxxx` (Google Sheet dùng `CAPEX-xxx`).
+- `.env` (không commit) cần `SESSION_SECRET` (>=16 ký tự) để ký session — đã có sẵn.
+- Chưa có "quên mật khẩu" tự phục vụ — admin reset hộ qua `/admin/users` hoặc CLI.
 
 ## Quy ước làm việc
 - Mỗi cuối phiên: cập nhật file này (đánh dấu ✅ việc xong, thêm việc mới).

@@ -1,20 +1,15 @@
-import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 
-const ADMIN_EMAIL = "admin@ezway.local";
-
-let cachedId: string | null = null;
-
+/**
+ * ID người dùng đang thực hiện hành động (tạo đơn, ghi phiếu kho...).
+ * Đọc từ session đăng nhập. Gọi trong server action — ném lỗi nếu chưa đăng nhập.
+ */
 export async function getActorUserId(): Promise<string> {
-  if (cachedId) return cachedId;
-  const user = await prisma.user.findUnique({
-    where: { email: ADMIN_EMAIL },
-    select: { id: true },
-  });
+  const user = await getCurrentUser();
   if (!user) {
     throw new Error(
-      "Khong tim thay user admin@ezway.local. Hay chay `npx prisma db seed`."
+      "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để tiếp tục."
     );
   }
-  cachedId = user.id;
-  return cachedId;
+  return user.id;
 }

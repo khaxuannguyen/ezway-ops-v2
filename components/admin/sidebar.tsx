@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Package2 } from "lucide-react";
 import { ADMIN_NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import type { UserRole } from "@/app/generated/prisma/enums";
 
 function isActive(pathname: string, href: string) {
   if (href === pathname) return true;
@@ -15,10 +16,14 @@ function isActive(pathname: string, href: string) {
 export interface SidebarProps {
   className?: string;
   onNavigate?: () => void;
+  role?: UserRole;
 }
 
-export function Sidebar({ className, onNavigate }: SidebarProps) {
+export function Sidebar({ className, onNavigate, role }: SidebarProps) {
   const pathname = usePathname() ?? "";
+  const sections = ADMIN_NAV.filter(
+    (section) => !section.adminOnly || role === "ADMIN"
+  );
 
   return (
     <aside
@@ -43,7 +48,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="flex flex-col gap-6">
-          {ADMIN_NAV.map((section) => (
+          {sections.map((section) => (
             <li key={section.label}>
               <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                 {section.label}

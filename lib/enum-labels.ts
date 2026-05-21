@@ -253,3 +253,29 @@ export const EXPENSE_STATUS_TONE: Record<ExpenseStatus, BadgeTone> = {
 };
 
 export const EXPENSE_STATUS_OPTIONS: ExpenseStatus[] = ["UNPAID", "PAID"];
+
+import type { UserRole } from "@/app/generated/prisma/enums";
+
+export const USER_ROLE_LABEL: Record<UserRole, string> = {
+  ADMIN: "Quản trị viên",
+  STAFF: "Nhân viên",
+  SALE: "Nhân viên sale",
+  DRIVER: "Tài xế",
+};
+
+export const USER_ROLE_TONE: Record<UserRole, BadgeTone> = {
+  ADMIN: "primary",
+  STAFF: "info",
+  SALE: "success",
+  DRIVER: "warning",
+};
+
+export const USER_ROLE_DESCRIPTION: Record<UserRole, string> = {
+  ADMIN: "Toàn quyền: quản lý tài khoản, chi phí, cấu hình.",
+  STAFF: "Vận hành: đơn hàng, kho, lệnh lấy hàng.",
+  SALE: "Nhân viên kinh doanh: tạo đơn, xem doanh thu cá nhân.",
+  DRIVER: "Tài xế giao nhận: chỉ dùng cho lệnh lấy hàng.",
+};
+
+/** Role gán tay khi tạo tài khoản (DRIVER tạo qua module Tài xế). */
+export const USER_ROLE_OPTIONS: UserRole[] = ["ADMIN", "STAFF", "SALE", "DRIVER"];

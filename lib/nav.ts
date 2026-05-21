@@ -8,6 +8,7 @@ import {
   PackageOpen,
   ReceiptText,
   Truck,
+  UserCog,
   Users,
   Warehouse,
   Wrench,
@@ -22,6 +23,8 @@ export type NavItem = {
 export type NavSection = {
   label: string;
   items: NavItem[];
+  /** Chỉ hiển thị cho ADMIN. */
+  adminOnly?: boolean;
 };
 
 export const ADMIN_NAV: NavSection[] = [
@@ -59,5 +62,10 @@ export const ADMIN_NAV: NavSection[] = [
       { href: "/admin/cost-items", label: "Khoản chi phí", icon: ReceiptText },
       { href: "/admin/startup-expenses", label: "Chi phí thành lập", icon: Landmark },
     ],
+  },
+  {
+    label: "Hệ thống",
+    adminOnly: true,
+    items: [{ href: "/admin/users", label: "Tài khoản", icon: UserCog }],
   },
 ];

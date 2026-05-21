@@ -4,14 +4,17 @@ import * as React from "react";
 import { Bell, Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UserMenu } from "@/components/admin/user-menu";
 import { cn } from "@/lib/utils";
+import type { UserRole } from "@/app/generated/prisma/enums";
 
 export interface AdminHeaderProps {
   onOpenSidebar?: () => void;
   className?: string;
+  user?: { name: string; email: string; role: UserRole } | null;
 }
 
-export function AdminHeader({ onOpenSidebar, className }: AdminHeaderProps) {
+export function AdminHeader({ onOpenSidebar, className, user }: AdminHeaderProps) {
   return (
     <header
       className={cn(
@@ -45,18 +48,7 @@ export function AdminHeader({ onOpenSidebar, className }: AdminHeaderProps) {
         <Button variant="ghost" size="icon" aria-label="Thông báo">
           <Bell className="h-5 w-5" aria-hidden />
         </Button>
-        <div className="flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 pr-3">
-          <span
-            aria-hidden
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
-          >
-            EZ
-          </span>
-          <div className="hidden text-left leading-tight sm:block">
-            <p className="text-sm font-medium text-foreground">Quản trị viên</p>
-            <p className="text-[11px] text-muted-foreground">EZWAY Logistics</p>
-          </div>
-        </div>
+        <UserMenu user={user ?? null} />
       </div>
     </header>
   );

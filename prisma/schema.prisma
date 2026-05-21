@@ -19,6 +19,7 @@ datasource db {
 enum UserRole {
   ADMIN
   STAFF
+  SALE
   DRIVER
 }
 
@@ -131,11 +132,12 @@ enum ExpenseStatus {
 // ────────────────────────────────────────────────────────────────────────────
 
 model User {
-  id       String   @id @default(cuid())
-  email    String   @unique
-  name     String
-  role     UserRole @default(STAFF)
-  isActive Boolean  @default(true)
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         UserRole @default(STAFF)
+  isActive     Boolean  @default(true)
+  passwordHash String?
 
   driver           Driver?
   ordersCreated    Order[]           @relation("OrderCreatedBy")
