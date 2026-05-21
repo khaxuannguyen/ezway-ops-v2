@@ -31,7 +31,10 @@
 
 ## ⬜ Chưa làm / để sau
 
-- [ ] **Auth / phân quyền** (Better Auth) — `lib/current-user.ts` còn hardcode admin. Phase riêng.
+- [ ] **Auth + phân quyền** — VIỆC TIẾP THEO. Kế hoạch chi tiết: `docs/auth-plan.md`.
+      Chốt: role SALE trên User; làm session tối giản; làm trong PHIÊN MỚI (budget sạch).
+- [ ] **Sales portal** — sau Auth. Thống kê doanh thu/lợi nhuận theo sale + BXH
+      (góc nhìn sale: BXH ẩn lợi nhuận người khác). Xem `docs/auth-plan.md`.
 - [ ] **Driver portal** `/driver/*` — sau auth.
 - [ ] Test tự động (Playwright / Vitest) — chưa setup.
 - [ ] Ảnh lệnh lấy hàng + lịch sử trạng thái pickup (đã bỏ ở scope lean).
