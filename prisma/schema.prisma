@@ -1,0 +1,487 @@
+// EZWay Ops v2 — Phase 02 domain schema
+// 14 models + 11 enums covering international shipping ops (VN → US/EU/CA, AIR/SEA).
+// See plans/260517-phase-02-prisma-schema/phase-01-prisma-schema.md for design rationale.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../app/generated/prisma"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Enums
+// ────────────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  STAFF
+  DRIVER
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING
+  CONFIRMED
+  PICKING_UP
+  AT_WAREHOUSE
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+}
+
+enum ShippingTransportType {
+  AIR
+  SEA
+}
+
+enum CostRateType {
+  FIXED_TOTAL
+  PER_KG
+}
+
+enum CostCategory {
+  PICKUP
+  PACKAGING
+  CUSTOMS_SURCHARGE
+  OPERATION
+  OTHER
+}
+
+enum CostPricingType {
+  PER_UNIT
+  PER_KG
+  PER_KM
+  FLAT_RATE
+  QUOTE
+}
+
+enum PickupMethod {
+  NONE
+  EZWAY_PICKUP
+  CUSTOMER_DROP_OFF
+  THIRD_PARTY
+}
+
+enum PickupStatus {
+  PENDING
+  ASSIGNED
+  ACCEPTED
+  ON_THE_WAY
+  ARRIVED
+  PICKED_UP
+  FAILED
+  CANCELLED
+}
+
+enum VehicleType {
+  MOTORBIKE
+  CAR
+  VAN
+  TRUCK
+}
+
+enum PickupPhotoType {
+  PICKUP_BEFORE
+  PICKUP_AFTER
+  DAMAGE
+  DOCUMENT
+  PACKAGE_LABEL
+}
+
+enum SupplyCategory {
+  PACKAGING
+  LABEL
+  OFFICE
+  EQUIPMENT
+  OTHER
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUST
+}
+
+enum ExpenseCategory {
+  PACKAGING_EQUIPMENT
+  FOOD_ENTERTAINMENT
+  OPERATIONS_WAREHOUSE
+  OPENING_BRANDING
+  OTHER
+}
+
+enum ExpenseStatus {
+  UNPAID
+  PAID
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Models
+// ────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id       String   @id @default(cuid())
+  email    String   @unique
+  name     String
+  role     UserRole @default(STAFF)
+  isActive Boolean  @default(true)
+
+  driver           Driver?
+  ordersCreated    Order[]           @relation("OrderCreatedBy")
+  auditLogs        AuditLog[]
+  pickupStatusLogs PickupStatusLog[]
+  pickupPhotos     PickupPhoto[]
+  stockMovements   StockMovement[]   @relation("StockMovementCreatedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Customer {
+  id         String  @id @default(cuid())
+  code       String  @unique
+  name       String
+  phone      String
+  email      String?
+  address    String
+  isBusiness Boolean @default(false)
+  taxCode    String?
+  notes      String?
+
+  orders Order[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([phone])
+  @@map("customers")
+}
+
+model ShippingService {
+  id                String                @id @default(cuid())
+  code              String                @unique
+  name              String
+  transportType     ShippingTransportType
+  destinationCode   String
+  destinationName   String
+  volumetricDivisor Int                   @default(5000)
+  description       String?
+  isActive          Boolean               @default(true)
+
+  rates  ServiceCostRate[]
+  orders Order[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("shipping_services")
+}
+
+model ServiceCostRate {
+  id        String          @id @default(cuid())
+  serviceId String
+  service   ShippingService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  minWeightKg Decimal      @db.Decimal(8, 2)
+  maxWeightKg Decimal      @db.Decimal(8, 2)
+  rateType    CostRateType
+  amountVnd   Int
+
+  validFrom DateTime  @default(now())
+  validTo   DateTime?
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([serviceId, minWeightKg, maxWeightKg, validFrom])
+  @@index([serviceId, minWeightKg])
+  @@index([serviceId, validFrom, validTo])
+  @@map("service_cost_rates")
+}
+
+model CostItem {
+  id               String          @id @default(cuid())
+  code             String          @unique
+  name             String
+  category         CostCategory
+  pricingType      CostPricingType
+  defaultAmountVnd Int?
+  unitLabel        String?
+  description      String?
+  isActive         Boolean         @default(true)
+
+  extraCosts OrderExtraCost[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("cost_items")
+}
+
+model Order {
+  id     String      @id @default(cuid())
+  code   String      @unique
+  status OrderStatus @default(DRAFT)
+
+  customerId String
+  customer   Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  serviceId  String
+  service    ShippingService @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  chargeableWeightKg        Decimal @db.Decimal(8, 2)
+  volumetricDivisor         Int     @default(5000)
+  baseRateSnapshotVnd       Int
+  serviceCostRateIdSnapshot String?
+
+  baseCostVnd       Int @default(0)
+  extraCostTotalVnd Int @default(0)
+  totalFeeVnd       Int @default(0)
+  profitVnd         Int @default(0)
+
+  pickupMethod          PickupMethod   @default(NONE)
+  thirdPartyProvider    String?
+  thirdPartyProviderUrl String?
+  pickupRequest         PickupRequest?
+
+  packages       Package[]
+  payments       Payment[]
+  extraCosts     OrderExtraCost[]
+  stockMovements StockMovement[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String
+  createdBy   User      @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  deletedAt   DateTime?
+
+  notes String?
+
+  @@index([customerId, createdAt])
+  @@index([serviceId, status])
+  @@index([status, createdAt])
+  @@map("orders")
+}
+
+model Package {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  trackingCode       String?
+  description        String?
+  actualWeightKg     Decimal @db.Decimal(8, 2)
+  lengthCm           Int
+  widthCm            Int
+  heightCm           Int
+  volumetricWeightKg Decimal @db.Decimal(8, 2)
+  chargeableWeightKg Decimal @db.Decimal(8, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@map("packages")
+}
+
+model OrderExtraCost {
+  id         String    @id @default(cuid())
+  orderId    String
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  costItemId String?
+  costItem   CostItem? @relation(fields: [costItemId], references: [id], onDelete: SetNull)
+
+  nameSnapshot     String
+  categorySnapshot CostCategory
+  pricingSnapshot  CostPricingType
+  quantity         Decimal         @default(1) @db.Decimal(10, 2)
+  unitAmountVnd    Int
+  amountVnd        Int
+  note             String?
+
+  appliedAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("order_extra_costs")
+}
+
+model Driver {
+  id           String      @id @default(cuid())
+  userId       String      @unique
+  user         User        @relation(fields: [userId], references: [id])
+  vehicleType  VehicleType
+  vehiclePlate String?
+  phone        String
+  isActive     Boolean     @default(true)
+
+  pickupRequests PickupRequest[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("drivers")
+}
+
+model PickupRequest {
+  id      String @id @default(cuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  driverId String?
+  driver   Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+
+  currentStatus PickupStatus @default(PENDING)
+
+  pickupAddress      String
+  pickupContactName  String
+  pickupContactPhone String
+  scheduledAt        DateTime?
+  notes              String?
+
+  photos     PickupPhoto[]
+  statusLogs PickupStatusLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId, currentStatus])
+  @@index([currentStatus, scheduledAt])
+  @@map("pickup_requests")
+}
+
+model PickupStatusLog {
+  id              String        @id @default(cuid())
+  pickupRequestId String
+  pickupRequest   PickupRequest @relation(fields: [pickupRequestId], references: [id], onDelete: Cascade)
+  fromStatus      PickupStatus?
+  toStatus        PickupStatus
+  byUserId        String
+  byUser          User          @relation(fields: [byUserId], references: [id])
+  note            String?
+  at              DateTime      @default(now())
+
+  @@index([pickupRequestId, at])
+  @@map("pickup_status_logs")
+}
+
+model PickupPhoto {
+  id               String          @id @default(cuid())
+  pickupRequestId  String
+  pickupRequest    PickupRequest   @relation(fields: [pickupRequestId], references: [id], onDelete: Cascade)
+  photoUrl         String
+  photoType        PickupPhotoType
+  uploadedByUserId String
+  uploadedBy       User            @relation(fields: [uploadedByUserId], references: [id])
+  uploadedAt       DateTime        @default(now())
+
+  @@index([pickupRequestId, photoType])
+  @@map("pickup_photos")
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  orderId   String
+  order     Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amountVnd Int
+  status    PaymentStatus @default(UNPAID)
+  method    String?
+  reference String?
+  paidAt    DateTime?
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId, status])
+  @@map("payments")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  entityType String
+  entityId   String
+  action     String
+  beforeJson Json?
+  afterJson  Json?
+  at         DateTime @default(now())
+
+  @@index([entityType, entityId, at])
+  @@index([userId, at])
+  @@map("audit_logs")
+}
+
+model Supply {
+  id           String         @id @default(cuid())
+  code         String         @unique
+  name         String
+  category     SupplyCategory @default(PACKAGING)
+  unit         String
+  currentStock Int            @default(0)
+  minStock     Int            @default(0)
+  notes        String?
+  isActive     Boolean        @default(true)
+
+  movements StockMovement[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("supplies")
+}
+
+model StartupExpense {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  category    ExpenseCategory @default(OTHER)
+  itemName    String
+  amountVnd   Int
+  status      ExpenseStatus   @default(UNPAID)
+  paymentDate DateTime?
+  paidBy      String?
+  note        String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("startup_expenses")
+}
+
+model StockMovement {
+  id            String            @id @default(cuid())
+  supplyId      String
+  supply        Supply            @relation(fields: [supplyId], references: [id], onDelete: Cascade)
+  type          StockMovementType
+  quantityDelta Int
+  stockAfter    Int
+  note          String?
+  orderId       String?
+  order         Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdById   String
+  createdBy     User              @relation("StockMovementCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime          @default(now())
+
+  @@index([supplyId, createdAt])
+  @@index([orderId])
+  @@map("stock_movements")
+}
