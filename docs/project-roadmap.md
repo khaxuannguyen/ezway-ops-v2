@@ -39,7 +39,7 @@
 - [ ] Huỷ đơn → tự hoàn kho (hiện phải Nhập kho thủ công).
 
 ## ⚠️ Nợ kỹ thuật / lưu ý
-- **Git:** mới chỉ "Initial commit" — cần commit thường xuyên để có lịch sử.
+- **Git:** đã commit toàn bộ app (`09bdc01`). CHƯA push — chưa có remote. Cần tạo repo GitHub + `git remote add origin` + push.
 - Đổi schema → BẮT BUỘC restart `npm run dev`.
 - ESLint còn 1 warning ở `data-table.tsx` (giới hạn thư viện TanStack — không phải lỗi).
 - Mã chi phí thành lập là `CP-xxxx` (Google Sheet dùng `CAPEX-xxx`).
