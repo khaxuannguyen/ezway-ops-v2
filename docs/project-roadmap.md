@@ -39,7 +39,7 @@
 - [ ] Huỷ đơn → tự hoàn kho (hiện phải Nhập kho thủ công).
 
 ## ⚠️ Nợ kỹ thuật / lưu ý
-- **Git:** đã commit toàn bộ app (`09bdc01`). CHƯA push — chưa có remote. Cần tạo repo GitHub + `git remote add origin` + push.
+- **Git:** đã commit + push lên GitHub (`github.com/khaxuannguyen/ezway-ops-v2`, nhánh `master`). Cuối mỗi phiên nhớ commit + push.
 - Đổi schema → BẮT BUỘC restart `npm run dev`.
 - ESLint còn 1 warning ở `data-table.tsx` (giới hạn thư viện TanStack — không phải lỗi).
 - Mã chi phí thành lập là `CP-xxxx` (Google Sheet dùng `CAPEX-xxx`).
