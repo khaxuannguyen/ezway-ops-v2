@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { buildOrderCode } from "@/lib/codegen";
-import { getActorUserId } from "@/lib/current-user";
+import { getCurrentUser, type CurrentUser } from "@/lib/auth";
 import {
   calculateOrderPackageTotals,
   computePackageWeights,
@@ -60,6 +60,25 @@ async function nextOrderCode(date: Date): Promise<string> {
     where: { createdAt: { gte: start, lt: end } },
   });
   return buildOrderCode(count + 1, date);
+}
+
+/**
+ * Quyết định nhân viên sale của đơn:
+ * - Người tạo/sửa là SALE → luôn gán cho chính họ (không cho chọn người khác).
+ * - ADMIN/STAFF → dùng giá trị chọn trong form, chỉ chấp nhận nếu là tài khoản SALE.
+ */
+async function resolveSalesUserId(
+  actor: CurrentUser,
+  formValue: string | undefined
+): Promise<string | null> {
+  if (actor.role === "SALE") return actor.id;
+  const picked = (formValue ?? "").trim();
+  if (!picked) return null;
+  const u = await prisma.user.findUnique({
+    where: { id: picked },
+    select: { role: true },
+  });
+  return u && u.role === "SALE" ? picked : null;
 }
 
 export async function createOrder(
@@ -162,7 +181,15 @@ export async function createOrder(
     const totalFeeVnd = data.customerFeeVnd;
     const profitVnd = totalFeeVnd - baseCostVnd - extraCostTotalVnd;
     const code = await nextOrderCode(new Date());
-    const createdById = await getActorUserId();
+    const actor = await getCurrentUser();
+    if (!actor) {
+      return {
+        ok: false,
+        formError: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+      };
+    }
+    const createdById = actor.id;
+    const salesUserId = await resolveSalesUserId(actor, data.salesUserId);
 
     const created = await prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
@@ -181,6 +208,7 @@ export async function createOrder(
           profitVnd,
           pickupMethod: data.pickupMethod,
           createdById,
+          salesUserId,
           notes: normOpt(data.notes),
         },
         select: { id: true },
@@ -294,12 +322,22 @@ export async function updateOrder(
     const totalFeeVnd = data.customerFeeVnd;
     const profitVnd = totalFeeVnd - baseCostVnd - extraCostTotalVnd;
 
+    const actor = await getCurrentUser();
+    if (!actor) {
+      return {
+        ok: false,
+        formError: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+      };
+    }
+    const salesUserId = await resolveSalesUserId(actor, data.salesUserId);
+
     await prisma.order.update({
       where: { id },
       data: {
         status: data.status,
         customerId: data.customerId,
         serviceId: service.id,
+        salesUserId,
         chargeableWeightKg: data.chargeableWeightKg,
         volumetricDivisor: service.volumetricDivisor,
         baseRateSnapshotVnd: tier.amountVnd,

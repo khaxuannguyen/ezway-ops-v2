@@ -9,6 +9,8 @@ import { listAllServicesLite } from "@/features/orders/queries";
 import { listAllCustomersLite } from "@/features/customers/queries";
 import { listActiveCostItemsLite } from "@/features/cost-items/queries";
 import { listActiveSuppliesLite } from "@/features/supplies/queries";
+import { listSalesUsersLite } from "@/features/users/queries";
+import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Tạo đơn hàng",
@@ -19,13 +21,19 @@ interface PageProps {
 }
 
 export default async function NewOrderPage({ searchParams }: PageProps) {
+  const user = await requireUser();
   const sp = await searchParams;
-  const [customers, services, costItems, supplies] = await Promise.all([
-    listAllCustomersLite(),
-    listAllServicesLite(),
-    listActiveCostItemsLite(),
-    listActiveSuppliesLite(),
-  ]);
+  const [customers, services, costItems, supplies, salesUsers] =
+    await Promise.all([
+      listAllCustomersLite(),
+      listAllServicesLite(),
+      listActiveCostItemsLite(),
+      listActiveSuppliesLite(),
+      listSalesUsersLite(),
+    ]);
+
+  const lockedSalesUser =
+    user.role === "SALE" ? { id: user.id, name: user.name } : null;
 
   return (
     <div className="space-y-6">
@@ -46,6 +54,8 @@ export default async function NewOrderPage({ searchParams }: PageProps) {
             services={services}
             costItems={costItems}
             supplies={supplies}
+            salesUsers={salesUsers}
+            lockedSalesUser={lockedSalesUser}
             defaults={{ customerId: sp.customerId }}
             action={createOrder}
             submitLabel={"Tạo đơn hàng"}

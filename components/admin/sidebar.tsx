@@ -23,7 +23,15 @@ export function Sidebar({ className, onNavigate, role }: SidebarProps) {
   const pathname = usePathname() ?? "";
   const sections = ADMIN_NAV.filter(
     (section) => !section.adminOnly || role === "ADMIN"
-  );
+  )
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) =>
+          !item.roles || (role !== undefined && item.roles.includes(role))
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <aside

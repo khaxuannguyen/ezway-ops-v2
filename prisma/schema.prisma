@@ -141,6 +141,7 @@ model User {
 
   driver           Driver?
   ordersCreated    Order[]           @relation("OrderCreatedBy")
+  ordersAsSales    Order[]           @relation("OrderSalesUser")
   auditLogs        AuditLog[]
   pickupStatusLogs PickupStatusLog[]
   pickupPhotos     PickupPhoto[]
@@ -271,6 +272,8 @@ model Order {
   updatedAt   DateTime  @updatedAt
   createdById String
   createdBy   User      @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  salesUserId String?
+  salesUser   User?     @relation("OrderSalesUser", fields: [salesUserId], references: [id], onDelete: SetNull)
   deletedAt   DateTime?
 
   notes String?
@@ -278,6 +281,7 @@ model Order {
   @@index([customerId, createdAt])
   @@index([serviceId, status])
   @@index([status, createdAt])
+  @@index([salesUserId, createdAt])
   @@map("orders")
 }
 

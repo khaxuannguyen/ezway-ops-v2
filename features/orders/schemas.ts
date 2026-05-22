@@ -8,6 +8,7 @@ import {
 export const orderInputSchema = z.object({
   customerId: z.string().min(1, "Vui lòng chọn khách hàng."),
   serviceId: z.string().min(1, "Vui lòng chọn dịch vụ."),
+  salesUserId: z.string().trim().optional().or(z.literal("")),
   chargeableWeightKg: z
     .coerce.number({ message: "Cân tính cước phải lớn hơn 0." })
     .positive("Cân tính cước phải lớn hơn 0."),
@@ -26,6 +27,7 @@ export function parseOrderFormData(fd: FormData): Record<string, unknown> {
   return {
     customerId: (fd.get("customerId") ?? "").toString(),
     serviceId: (fd.get("serviceId") ?? "").toString(),
+    salesUserId: (fd.get("salesUserId") ?? "").toString(),
     chargeableWeightKg: (fd.get("chargeableWeightKg") ?? "").toString(),
     customerFeeVnd: (fd.get("customerFeeVnd") ?? "").toString(),
     status: (fd.get("status") ?? "DRAFT").toString(),
@@ -84,6 +86,7 @@ export type SupplyUsedRowInput = z.infer<typeof supplyUsedRowSchema>;
 export const orderCreateInputSchema = z.object({
   customerId: z.string().min(1, "Vui lòng chọn khách hàng."),
   serviceId: z.string().min(1, "Vui lòng chọn dịch vụ."),
+  salesUserId: z.string().trim().optional().or(z.literal("")),
   customerFeeVnd: z
     .coerce.number({ message: "Cước thu khách không hợp lệ." })
     .int("Cước thu khách không hợp lệ.")
@@ -155,6 +158,7 @@ export function parseOrderCreateFormData(fd: FormData): Record<string, unknown> 
   return {
     customerId: (fd.get("customerId") ?? "").toString(),
     serviceId: (fd.get("serviceId") ?? "").toString(),
+    salesUserId: (fd.get("salesUserId") ?? "").toString(),
     customerFeeVnd: (fd.get("customerFeeVnd") ?? "").toString(),
     status: (fd.get("status") ?? "DRAFT").toString(),
     pickupMethod: (fd.get("pickupMethod") ?? "NONE").toString(),

@@ -36,10 +36,15 @@ export interface ServiceOption {
   destinationCode: string;
   destinationName: string;
 }
+export interface SalesUserOption {
+  id: string;
+  name: string;
+}
 
 export interface OrderFormDefaults {
   customerId?: string;
   serviceId?: string;
+  salesUserId?: string | null;
   chargeableWeightKg?: number | string;
   customerFeeVnd?: number;
   status?: OrderStatus;
@@ -51,6 +56,9 @@ export interface OrderFormProps {
   defaults?: OrderFormDefaults;
   customers: CustomerOption[];
   services: ServiceOption[];
+  salesUsers: SalesUserOption[];
+  /** Khi người sửa là SALE — khoá ô chọn về chính họ. */
+  lockedSalesUser?: { id: string; name: string } | null;
   action: (
     prev: ActionResult<{ id: string }> | null,
     formData: FormData
@@ -69,6 +77,8 @@ export function OrderForm({
   defaults,
   customers,
   services,
+  salesUsers,
+  lockedSalesUser,
   action,
   submitLabel,
 }: OrderFormProps) {
@@ -130,6 +140,38 @@ export function OrderForm({
                 </option>
               ))}
             </Select>
+          </Field>
+          <Field
+            label={"Nhân viên sale"}
+            htmlFor="salesUserId"
+            error={err("salesUserId")}
+            description={
+              lockedSalesUser
+                ? "Đơn này được gán cho bạn."
+                : "Nhân viên kinh doanh phụ trách đơn."
+            }
+          >
+            {lockedSalesUser ? (
+              <>
+                <input type="hidden" name="salesUserId" value={lockedSalesUser.id} />
+                <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm text-muted-foreground">
+                  {lockedSalesUser.name + " (bạn)"}
+                </div>
+              </>
+            ) : (
+              <Select
+                id="salesUserId"
+                name="salesUserId"
+                defaultValue={defaults?.salesUserId ?? ""}
+              >
+                <option value="">{"— Chưa gán —"}</option>
+                {salesUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </Select>
+            )}
           </Field>
         </div>
       </FormSection>

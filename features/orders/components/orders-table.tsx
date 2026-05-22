@@ -44,6 +44,15 @@ export function OrdersTable({ rows }: { rows: OrderListRow[] }) {
         ),
       },
       {
+        accessorKey: "salesUser.name",
+        header: "Nhân viên sale",
+        cell: ({ row }) => (
+          <span className="text-sm">
+            {row.original.salesUser?.name ?? "—"}
+          </span>
+        ),
+      },
+      {
         accessorKey: "status",
         header: "Trạng thái",
         cell: ({ row }) => <OrderStatusBadge status={row.original.status} />,

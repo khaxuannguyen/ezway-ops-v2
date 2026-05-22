@@ -89,6 +89,17 @@ export async function listUsers(
   };
 }
 
+/** Danh sách nhân viên sale đang hoạt động — dùng cho ô chọn ở form đơn hàng. */
+export async function listSalesUsersLite(): Promise<
+  { id: string; name: string }[]
+> {
+  return prisma.user.findMany({
+    where: { role: "SALE", isActive: true },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+}
+
 /** Lấy 1 tài khoản. Trả null nếu là tài xế (quản lý ở module Tài xế). */
 export async function getUserById(id: string) {
   const u = await prisma.user.findUnique({

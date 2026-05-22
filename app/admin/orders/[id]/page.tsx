@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getOrderById } from "@/features/orders/queries";
+import { requireUser } from "@/lib/auth";
 import { formatDate, formatDateTime, formatWeight } from "@/lib/format";
 import {
   PICKUP_METHOD_LABEL,
@@ -43,9 +44,12 @@ interface PageProps {
 }
 
 export default async function OrderDetailPage({ params }: PageProps) {
+  const user = await requireUser();
   const { id } = await params;
   const order = await getOrderById(id);
   if (!order) notFound();
+  // SALE chỉ được xem đơn của chính mình.
+  if (user.role === "SALE" && order.salesUserId !== user.id) notFound();
 
   const packageTotals = calculateOrderPackageTotals(
     order.packages.map((p) => ({
@@ -108,6 +112,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
               <Badge tone="neutral">
                 {PICKUP_METHOD_LABEL[order.pickupMethod]}
               </Badge>
+            </Info>
+            <Info label={"Nhân viên sale"}>
+              {order.salesUser ? (
+                order.salesUser.name
+              ) : (
+                <span className="text-muted-foreground">{"Chưa gán"}</span>
+              )}
             </Info>
             <Info label={"Ngày tạo"}>
               {formatDateTime(order.createdAt)}

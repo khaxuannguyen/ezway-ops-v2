@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowUpRight, Package, ShoppingBag, Truck, Users } from "lucide-react";
+import { requireUser } from "@/lib/auth";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   Card,
@@ -78,6 +80,10 @@ async function loadStats() {
 }
 
 export default async function DashboardPage() {
+  // Nhân viên sale có bảng điều khiển riêng.
+  const user = await requireUser();
+  if (user.role === "SALE") redirect("/admin/my-sales");
+
   const stats = await loadStats();
 
   const summary = [

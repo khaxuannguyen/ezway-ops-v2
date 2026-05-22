@@ -9,6 +9,7 @@ import type { OrderStatus } from "@/app/generated/prisma/enums";
 export interface ListOrdersInput {
   q?: string;
   status?: OrderStatus;
+  salesUserId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -25,6 +26,7 @@ export interface OrderListRow {
   createdAt: Date;
   customer: { id: string; code: string; name: string };
   service: { id: string; code: string; name: string };
+  salesUser: { id: string; name: string } | null;
   packageCount: number;
 }
 
@@ -43,6 +45,7 @@ export async function listOrders(
   const where = {
     deletedAt: null,
     ...(input.status ? { status: input.status } : {}),
+    ...(input.salesUserId ? { salesUserId: input.salesUserId } : {}),
     ...(q
       ? {
           OR: [
@@ -71,6 +74,7 @@ export async function listOrders(
       include: {
         customer: { select: { id: true, code: true, name: true } },
         service: { select: { id: true, code: true, name: true } },
+        salesUser: { select: { id: true, name: true } },
         _count: { select: { packages: true } },
       },
     }),
@@ -89,6 +93,7 @@ export async function listOrders(
       createdAt: o.createdAt,
       customer: o.customer,
       service: o.service,
+      salesUser: o.salesUser,
       packageCount: o._count.packages,
     })),
     meta: buildPageMeta(total, page, pageSize),
@@ -105,6 +110,7 @@ export async function getOrderById(id: string) {
       payments: { orderBy: { createdAt: "desc" } },
       extraCosts: { orderBy: { appliedAt: "desc" } },
       createdBy: { select: { id: true, name: true, email: true } },
+      salesUser: { select: { id: true, name: true } },
       pickupRequest: {
         select: {
           id: true,

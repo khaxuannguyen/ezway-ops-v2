@@ -13,6 +13,7 @@ import {
   parseEnumParam,
 } from "@/lib/pagination";
 import { ORDER_STATUS_OPTIONS } from "@/lib/enum-labels";
+import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Đơn hàng",
@@ -27,17 +28,29 @@ interface PageProps {
 }
 
 export default async function OrdersPage({ searchParams }: PageProps) {
+  const user = await requireUser();
+  const isSale = user.role === "SALE";
+
   const sp = await searchParams;
   const q = parseQuery(sp.q);
   const page = parsePage(sp.page);
   const status = parseEnumParam(sp.status, ORDER_STATUS_OPTIONS);
-  const { rows, meta } = await listOrders({ q, status, page });
+  const { rows, meta } = await listOrders({
+    q,
+    status,
+    page,
+    salesUserId: isSale ? user.id : undefined,
+  });
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={"Đơn hàng"}
-        description={"Quản lý đơn hàng, trạng thái xử lý và doanh thu."}
+        title={isSale ? "Đơn hàng của tôi" : "Đơn hàng"}
+        description={
+          isSale
+            ? "Các đơn hàng bạn phụ trách."
+            : "Quản lý đơn hàng, trạng thái xử lý và doanh thu."
+        }
         actions={
           <LinkButton href="/admin/orders/new">
             <Plus className="h-4 w-4" aria-hidden />

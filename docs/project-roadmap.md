@@ -1,7 +1,7 @@
 # EZWAY Ops v2 — Project Roadmap
 
 > **NGUỒN SỰ THẬT DUY NHẤT về tiến độ.** Mỗi phiên làm việc: đọc file này trước.
-> Cập nhật cuối: 2026-05-21 (đã xong phase Auth)
+> Cập nhật cuối: 2026-05-22 (đã xong Sales Portal)
 > (Các file `plans/*.md` đã LỖI THỜI — bỏ qua, không phản ánh thực tế.)
 
 ## Khởi động mỗi ngày
@@ -28,27 +28,33 @@
 | Kho vật tư | `/admin/supplies` | Nhập/Xuất/Kiểm kê + lịch sử |
 | Chi phí thành lập | `/admin/startup-expenses` | Tổng hợp + tự gợi ý nhóm theo từ khóa |
 | Tài khoản | `/admin/users` | CRUD tài khoản, gán role, đặt/reset mật khẩu (chỉ ADMIN) |
+| Thống kê sale | `/admin/sales` | Doanh thu + lợi nhuận theo từng sale, lọc theo tháng (chỉ ADMIN) |
+| Bán hàng của tôi | `/admin/my-sales` | Dashboard cá nhân SALE + BXH doanh thu (ẩn lợi nhuận người khác) |
 
 **Tích hợp:** Đơn ↔ Lệnh lấy hàng · Đơn ↔ Kho (tự trừ tồn khi tạo đơn)
 
 **Auth:** đăng nhập email + mật khẩu băm (bcryptjs) + session JWT-trong-cookie (jose).
 `proxy.ts` chặn `/admin/*` nếu chưa đăng nhập; layout admin `requireUser()`; nav ẩn
-mục ADMIN-only theo role. `lib/auth` có `getCurrentUser / requireUser / requireRole`.
+mục theo role. `lib/auth` có `getCurrentUser / requireUser / requireRole`.
 Roles: `ADMIN, STAFF, SALE, DRIVER`.
 
-**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`, `add_sale_role_and_password`
+**Sales Portal:** `Order.salesUserId` (FK User role SALE). Form đơn có ô chọn sale —
+người tạo là SALE thì tự gán chính họ. SALE chỉ thấy/sửa đơn của mình; đăng nhập vào
+thẳng `/admin/my-sales`. BXH xếp theo doanh thu tháng. Thống kê admin xem ở `/admin/sales`.
+
+**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`, `add_sale_role_and_password`, `add_order_sales_user`
 
 ## ⬜ Chưa làm / để sau
 
-- [ ] **Sales portal** — VIỆC TIẾP THEO. `Order` thêm `salesUserId` (FK User role
-      SALE); form tạo đơn chọn sale (hoặc tự gán nếu người tạo là SALE); trang admin
-      thống kê doanh thu + lợi nhuận theo sale + BXH; dashboard cá nhân cho SALE,
-      BXH doanh thu ẩn lợi nhuận người khác. Xem `docs/auth-plan.md`.
-- [ ] **Driver portal** `/driver/*` — sau Sales portal.
+- [ ] **Driver portal** `/driver/*` — VIỆC TIẾP THEO.
+- [ ] **Siết quyền trang nhạy cảm** — hiện SALE bị ẩn menu Chi phí/Kho... nhưng nếu
+      gõ thẳng URL vẫn vào được (chỉ `/admin/sales`, `/admin/users` mới chặn cứng theo
+      role). Cân nhắc thêm `requireRole` cho cost-rates/startup-expenses nếu cần.
 - [ ] Test tự động (Playwright / Vitest) — chưa setup.
 - [ ] Ảnh lệnh lấy hàng + lịch sử trạng thái pickup (đã bỏ ở scope lean).
 - [ ] Báo cáo tiêu hao vật tư theo kỳ (tháng/quý).
 - [ ] Huỷ đơn → tự hoàn kho (hiện phải Nhập kho thủ công).
+- [ ] Sales: target/KPI theo sale (tuỳ chọn về sau).
 
 ## ⚠️ Nợ kỹ thuật / lưu ý
 - **Git:** đã commit + push lên GitHub (`github.com/khaxuannguyen/ezway-ops-v2`, nhánh `master`). Cuối mỗi phiên nhớ commit + push.
