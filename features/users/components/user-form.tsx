@@ -132,14 +132,13 @@ export function UserForm({
       {withPassword ? (
         <FormSection
           title={"Mật khẩu"}
-          description={"Mật khẩu tạm thời — chủ tài khoản nên đổi lại sau."}
+          description={"Để trống nếu nhân viên đăng nhập bằng Google."}
         >
           <Field
             label={"Mật khẩu"}
             htmlFor="password"
-            required
             error={err("password")}
-            description={"Tối thiểu 6 ký tự."}
+            description={"Tối thiểu 6 ký tự. Bỏ trống = chỉ đăng nhập bằng Google."}
           >
             <Input
               id="password"

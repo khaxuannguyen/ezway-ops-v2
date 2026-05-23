@@ -138,8 +138,11 @@ model User {
   role         UserRole @default(STAFF)
   isActive     Boolean  @default(true)
   passwordHash String?
+  googleId     String?  @unique
+  image        String?
 
   driver           Driver?
+  profile          EmployeeProfile?
   ordersCreated    Order[]           @relation("OrderCreatedBy")
   ordersAsSales    Order[]           @relation("OrderSalesUser")
   auditLogs        AuditLog[]
@@ -151,6 +154,28 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@map("users")
+}
+
+
+model EmployeeProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  phone                 String?
+  address               String?
+  position              String?
+  dateOfBirth           DateTime?
+  joinedAt              DateTime?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  nationalId            String?
+  notes                 String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("employee_profiles")
 }
 
 model Customer {

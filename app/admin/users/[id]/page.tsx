@@ -6,7 +6,7 @@ import { LinkButton } from "@/components/ui/link-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getUserById } from "@/features/users/queries";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import {
   USER_ROLE_LABEL,
   USER_ROLE_TONE,
@@ -85,11 +85,18 @@ export default async function UserDetailPage({ params }: PageProps) {
                 <Badge tone="neutral">{"Đã khoá"}</Badge>
               )}
             </Info>
-            <Info label={"Mật khẩu"}>
-              {user.hasPassword ? (
-                <Badge tone="success">{"Đã đặt"}</Badge>
+            <Info label={"Đăng nhập"}>
+              {!user.hasPassword && !user.hasGoogle ? (
+                <Badge tone="warning">{"Chưa đăng nhập lần nào"}</Badge>
               ) : (
-                <Badge tone="warning">{"Chưa đặt — không đăng nhập được"}</Badge>
+                <div className="flex flex-wrap gap-1">
+                  {user.hasGoogle ? (
+                    <Badge tone="info">{"Google"}</Badge>
+                  ) : null}
+                  {user.hasPassword ? (
+                    <Badge tone="neutral">{"Mật khẩu"}</Badge>
+                  ) : null}
+                </div>
               )}
             </Info>
             <Info label={"Ngày tạo"}>{formatDateTime(user.createdAt)}</Info>
@@ -110,6 +117,53 @@ export default async function UserDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{"Hồ sơ nhân sự"}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {user.profile ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Info label={"Số điện thoại"}>
+                {user.profile.phone ?? "—"}
+              </Info>
+              <Info label={"Chức vụ"}>{user.profile.position ?? "—"}</Info>
+              <Info label={"Ngày sinh"}>
+                {user.profile.dateOfBirth
+                  ? formatDate(user.profile.dateOfBirth)
+                  : "—"}
+              </Info>
+              <Info label={"Ngày vào làm"}>
+                {user.profile.joinedAt
+                  ? formatDate(user.profile.joinedAt)
+                  : "—"}
+              </Info>
+              <Info label={"Địa chỉ"} className="sm:col-span-2">
+                {user.profile.address ?? "—"}
+              </Info>
+              <Info label={"Người liên hệ khẩn cấp"}>
+                {user.profile.emergencyContactName ?? "—"}
+              </Info>
+              <Info label={"SĐT liên hệ khẩn cấp"}>
+                {user.profile.emergencyContactPhone ?? "—"}
+              </Info>
+              <Info label={"CCCD / CMND"}>
+                {user.profile.nationalId ?? "—"}
+              </Info>
+              {user.profile.notes ? (
+                <Info label={"Ghi chú"} className="sm:col-span-2">
+                  {user.profile.notes}
+                </Info>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {"Nhân viên chưa cập nhật hồ sơ."}
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

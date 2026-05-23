@@ -19,7 +19,8 @@ export const userCreateSchema = z.object({
   name: nameField,
   email: emailField,
   role: z.enum(ASSIGNABLE_ROLES, { message: "Vui lòng chọn vai trò." }),
-  password: passwordField,
+  // Để trống = tài khoản chỉ đăng nhập bằng Google.
+  password: z.union([z.literal(""), passwordField]),
   isActive: z.boolean().default(true),
 });
 

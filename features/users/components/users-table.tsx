@@ -39,13 +39,19 @@ export function UsersTable({ rows }: { rows: UserListRow[] }) {
       },
       {
         accessorKey: "hasPassword",
-        header: "Mật khẩu",
-        cell: ({ row }) =>
-          row.original.hasPassword ? (
-            <Badge tone="success">{"Đã đặt"}</Badge>
-          ) : (
-            <Badge tone="warning">{"Chưa đặt"}</Badge>
-          ),
+        header: "Đăng nhập",
+        cell: ({ row }) => {
+          const { hasPassword, hasGoogle } = row.original;
+          if (!hasPassword && !hasGoogle) {
+            return <Badge tone="warning">{"Chưa đăng nhập"}</Badge>;
+          }
+          return (
+            <div className="flex flex-wrap gap-1">
+              {hasGoogle ? <Badge tone="info">{"Google"}</Badge> : null}
+              {hasPassword ? <Badge tone="neutral">{"Mật khẩu"}</Badge> : null}
+            </div>
+          );
+        },
       },
       {
         accessorKey: "orderCount",

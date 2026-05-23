@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { logout } from "@/features/auth/actions";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,11 @@ export function UserMenu({ user }: UserMenuProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <div className="flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 pr-3">
+      <Link
+        href="/admin/profile"
+        title="Tài khoản của tôi"
+        className="flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 pr-3 transition-colors hover:bg-muted"
+      >
         <span
           aria-hidden
           className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
@@ -36,7 +41,7 @@ export function UserMenu({ user }: UserMenuProps) {
             {USER_ROLE_LABEL[user.role]}
           </p>
         </div>
-      </div>
+      </Link>
       <form action={logout}>
         <Button
           type="submit"

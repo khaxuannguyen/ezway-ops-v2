@@ -82,7 +82,9 @@ export async function createUser(
         email: data.email.toLowerCase(),
         role: data.role,
         isActive: data.isActive,
-        passwordHash: await hashPassword(data.password),
+        passwordHash: data.password
+          ? await hashPassword(data.password)
+          : null,
       },
       select: { id: true },
     });

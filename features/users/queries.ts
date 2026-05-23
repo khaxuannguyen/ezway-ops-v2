@@ -23,6 +23,7 @@ export interface UserListRow {
   role: UserRole;
   isActive: boolean;
   hasPassword: boolean;
+  hasGoogle: boolean;
   orderCount: number;
   createdAt: Date;
 }
@@ -68,6 +69,7 @@ export async function listUsers(
         role: true,
         isActive: true,
         passwordHash: true,
+        googleId: true,
         createdAt: true,
         _count: { select: { ordersCreated: true } },
       },
@@ -82,6 +84,7 @@ export async function listUsers(
       role: u.role,
       isActive: u.isActive,
       hasPassword: Boolean(u.passwordHash),
+      hasGoogle: Boolean(u.googleId),
       orderCount: u._count.ordersCreated,
       createdAt: u.createdAt,
     })),
@@ -111,8 +114,22 @@ export async function getUserById(id: string) {
       role: true,
       isActive: true,
       passwordHash: true,
+      googleId: true,
       createdAt: true,
       _count: { select: { ordersCreated: true } },
+      profile: {
+        select: {
+          phone: true,
+          address: true,
+          position: true,
+          dateOfBirth: true,
+          joinedAt: true,
+          emergencyContactName: true,
+          emergencyContactPhone: true,
+          nationalId: true,
+          notes: true,
+        },
+      },
     },
   });
   if (!u || u.role === "DRIVER") return null;
@@ -123,7 +140,9 @@ export async function getUserById(id: string) {
     role: u.role,
     isActive: u.isActive,
     hasPassword: Boolean(u.passwordHash),
+    hasGoogle: Boolean(u.googleId),
     orderCount: u._count.ordersCreated,
     createdAt: u.createdAt,
+    profile: u.profile,
   };
 }

@@ -9,6 +9,7 @@ export interface CurrentUser {
   name: string;
   email: string;
   role: UserRole;
+  image: string | null;
 }
 
 /**
@@ -22,11 +23,24 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, email: true, role: true, isActive: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      image: true,
+      isActive: true,
+    },
   });
   if (!user || !user.isActive) return null;
 
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    image: user.image,
+  };
 });
 
 /** Bat buoc dang nhap — chua dang nhap thi chuyen ve /login. */
