@@ -59,6 +59,16 @@ export function CustomersTable({ rows }: { rows: CustomerListRow[] }) {
           ),
       },
       {
+        accessorKey: "salesUser.name",
+        header: "Nhân viên sale",
+        cell: ({ row }) =>
+          row.original.salesUser ? (
+            <span className="text-sm">{row.original.salesUser.name}</span>
+          ) : (
+            <span className="text-xs text-muted-foreground">{"Chưa gán"}</span>
+          ),
+      },
+      {
         accessorKey: "orderCount",
         header: "Đơn hàng",
         cell: ({ row }) => (

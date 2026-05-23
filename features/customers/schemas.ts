@@ -20,6 +20,8 @@ export const customerInputSchema = z
     isBusiness: z.boolean().default(false),
     taxCode: z.string().trim().optional().or(z.literal("")),
     notes: z.string().trim().optional().or(z.literal("")),
+    /** ADMIN dùng để gán/đổi nhân viên sale phụ trách; SALE/STAFF không thấy ô này. */
+    salesUserId: z.string().trim().optional().or(z.literal("")),
   })
   .superRefine((data, ctx) => {
     if (data.isBusiness && !data.taxCode) {
@@ -42,5 +44,6 @@ export function parseFormData(fd: FormData): Record<string, unknown> {
     isBusiness: fd.get("isBusiness") === "on" || fd.get("isBusiness") === "true",
     taxCode: (fd.get("taxCode") ?? "").toString(),
     notes: (fd.get("notes") ?? "").toString(),
+    salesUserId: (fd.get("salesUserId") ?? "").toString(),
   };
 }

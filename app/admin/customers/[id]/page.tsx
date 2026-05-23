@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { getCustomerWithOrders } from "@/features/customers/queries";
 import { formatDateTime } from "@/lib/format";
+import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: undefined,
@@ -29,9 +30,12 @@ interface PageProps {
 }
 
 export default async function CustomerDetailPage({ params }: PageProps) {
+  const user = await requireUser();
   const { id } = await params;
   const customer = await getCustomerWithOrders(id);
   if (!customer) notFound();
+  // SALE chỉ xem khách của mình.
+  if (user.role === "SALE" && customer.salesUserId !== user.id) notFound();
 
   return (
     <div className="space-y-6">
@@ -72,6 +76,13 @@ export default async function CustomerDetailPage({ params }: PageProps) {
             </Info>
             <Info label={"Địa chỉ"} className="sm:col-span-2">
               {customer.address}
+            </Info>
+            <Info label={"Nhân viên sale phụ trách"}>
+              {customer.salesUser ? (
+                customer.salesUser.name
+              ) : (
+                <span className="text-muted-foreground">{"Chưa gán"}</span>
+              )}
             </Info>
             {customer.taxCode ? (
               <Info label={"Mã số thuế"}>

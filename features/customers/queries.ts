@@ -7,6 +7,8 @@ import {
 
 export interface ListCustomersInput {
   q?: string;
+  /** Lọc theo sale phụ trách (dùng cho góc nhìn SALE — chỉ khách của mình). */
+  salesUserId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -21,6 +23,7 @@ export interface CustomerListRow {
   isBusiness: boolean;
   orderCount: number;
   createdAt: Date;
+  salesUser: { id: string; name: string } | null;
 }
 
 export interface CustomerListResult {
@@ -37,6 +40,7 @@ export async function listCustomers(
 
   const where = {
     deletedAt: null,
+    ...(input.salesUserId ? { salesUserId: input.salesUserId } : {}),
     ...(q
       ? {
           OR: [
@@ -56,7 +60,10 @@ export async function listCustomers(
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: { _count: { select: { orders: true } } },
+      include: {
+        _count: { select: { orders: true } },
+        salesUser: { select: { id: true, name: true } },
+      },
     }),
   ]);
 
@@ -71,14 +78,19 @@ export async function listCustomers(
       isBusiness: c.isBusiness,
       orderCount: c._count.orders,
       createdAt: c.createdAt,
+      salesUser: c.salesUser,
     })),
     meta: buildPageMeta(total, page, pageSize),
   };
 }
 
-export async function listAllCustomersLite() {
+/** Form đơn hàng dùng cái này. SALE truyền salesUserId = mình để chỉ thấy khách của mình. */
+export async function listAllCustomersLite(salesUserId?: string) {
   const rows = await prisma.customer.findMany({
-    where: { deletedAt: null },
+    where: {
+      deletedAt: null,
+      ...(salesUserId ? { salesUserId } : {}),
+    },
     select: { id: true, code: true, name: true, phone: true },
     orderBy: { code: "asc" },
   });
@@ -88,7 +100,10 @@ export async function listAllCustomersLite() {
 export async function getCustomerById(id: string) {
   const c = await prisma.customer.findUnique({
     where: { id },
-    include: { _count: { select: { orders: true } } },
+    include: {
+      _count: { select: { orders: true } },
+      salesUser: { select: { id: true, name: true } },
+    },
   });
   if (!c || c.deletedAt) return null;
   return c;
@@ -111,6 +126,7 @@ export async function getCustomerWithOrders(id: string) {
         },
       },
       _count: { select: { orders: true } },
+      salesUser: { select: { id: true, name: true } },
     },
   });
   if (!c || c.deletedAt) return null;

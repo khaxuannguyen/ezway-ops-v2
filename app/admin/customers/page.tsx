@@ -7,6 +7,7 @@ import { PaginationBar } from "@/components/shared/pagination-bar";
 import { CustomersTable } from "@/features/customers/components/customers-table";
 import { listCustomers } from "@/features/customers/queries";
 import { parsePage, parseQuery } from "@/lib/pagination";
+import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Khách hàng",
@@ -17,16 +18,27 @@ interface PageProps {
 }
 
 export default async function CustomersPage({ searchParams }: PageProps) {
+  const user = await requireUser();
+  const isSale = user.role === "SALE";
+
   const sp = await searchParams;
   const q = parseQuery(sp.q);
   const page = parsePage(sp.page);
-  const { rows, meta } = await listCustomers({ q, page });
+  const { rows, meta } = await listCustomers({
+    q,
+    page,
+    salesUserId: isSale ? user.id : undefined,
+  });
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={"Khách hàng"}
-        description={"Quản lý hồ sơ khách hàng doanh nghiệp và cá nhân."}
+        title={isSale ? "Khách hàng của tôi" : "Khách hàng"}
+        description={
+          isSale
+            ? "Khách hàng bạn phụ trách."
+            : "Quản lý hồ sơ khách hàng doanh nghiệp và cá nhân."
+        }
         actions={
           <LinkButton href="/admin/customers/new">
             <Plus className="h-4 w-4" aria-hidden />

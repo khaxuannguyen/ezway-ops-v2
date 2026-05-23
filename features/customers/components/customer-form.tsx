@@ -6,9 +6,15 @@ import { useRouter } from "next/navigation";
 import { Field } from "@/components/shared/field";
 import { FormSection } from "@/components/shared/form-section";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { fieldError, type ActionResult } from "@/lib/action-result";
+
+export interface SalesUserOption {
+  id: string;
+  name: string;
+}
 
 export interface CustomerFormDefaults {
   name?: string;
@@ -18,10 +24,13 @@ export interface CustomerFormDefaults {
   isBusiness?: boolean;
   taxCode?: string | null;
   notes?: string | null;
+  salesUserId?: string | null;
 }
 
 export interface CustomerFormProps {
   defaults?: CustomerFormDefaults;
+  /** Nếu truyền — hiện ô chọn sale phụ trách (chỉ ADMIN). */
+  salesUsers?: SalesUserOption[];
   action: (
     prev: ActionResult<{ id: string }> | null,
     formData: FormData
@@ -31,6 +40,7 @@ export interface CustomerFormProps {
 
 export function CustomerForm({
   defaults,
+  salesUsers,
   action,
   submitLabel,
 }: CustomerFormProps) {
@@ -161,6 +171,32 @@ export function CustomerForm({
           </Field>
         </div>
       </FormSection>
+
+      {salesUsers ? (
+        <FormSection
+          title={"Phân công"}
+          description={"Nhân viên sale phụ trách khách hàng này (gỡ khoá / chuyển sang sale khác)."}
+        >
+          <Field
+            label={"Nhân viên sale phụ trách"}
+            htmlFor="salesUserId"
+            error={err("salesUserId")}
+          >
+            <Select
+              id="salesUserId"
+              name="salesUserId"
+              defaultValue={defaults?.salesUserId ?? ""}
+            >
+              <option value="">{"— Chưa gán —"}</option>
+              {salesUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </FormSection>
+      ) : null}
 
       <div className="flex items-center justify-end gap-2 pt-6">
         <Button
