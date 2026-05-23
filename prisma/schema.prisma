@@ -145,6 +145,8 @@ model User {
   profile          EmployeeProfile?
   ordersCreated    Order[]           @relation("OrderCreatedBy")
   ordersAsSales    Order[]           @relation("OrderSalesUser")
+  customersOwned   Customer[]
+  pickupsCreated   PickupRequest[]
   auditLogs        AuditLog[]
   pickupStatusLogs PickupStatusLog[]
   pickupPhotos     PickupPhoto[]
@@ -155,7 +157,6 @@ model User {
 
   @@map("users")
 }
-
 
 model EmployeeProfile {
   id     String @id @default(cuid())
@@ -189,6 +190,9 @@ model Customer {
   taxCode    String?
   notes      String?
 
+  salesUserId String?
+  salesUser   User?   @relation(fields: [salesUserId], references: [id], onDelete: SetNull)
+
   orders Order[]
 
   createdAt DateTime  @default(now())
@@ -196,6 +200,7 @@ model Customer {
   deletedAt DateTime?
 
   @@index([phone])
+  @@index([salesUserId])
   @@map("customers")
 }
 
@@ -288,7 +293,6 @@ model Order {
   thirdPartyProviderUrl String?
   pickupRequest         PickupRequest?
 
-  packages       Package[]
   payments       Payment[]
   extraCosts     OrderExtraCost[]
   stockMovements StockMovement[]
@@ -311,9 +315,9 @@ model Order {
 }
 
 model Package {
-  id      String @id @default(cuid())
-  orderId String
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id              String        @id @default(cuid())
+  pickupRequestId String
+  pickupRequest   PickupRequest @relation(fields: [pickupRequestId], references: [id], onDelete: Cascade)
 
   trackingCode       String?
   description        String?
@@ -327,7 +331,7 @@ model Package {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([orderId])
+  @@index([pickupRequestId])
   @@map("packages")
 }
 
@@ -371,12 +375,16 @@ model Driver {
 }
 
 model PickupRequest {
-  id      String @id @default(cuid())
-  orderId String @unique
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id      String  @id @default(cuid())
+  code    String  @unique
+  orderId String? @unique
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   driverId String?
   driver   Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
 
   currentStatus PickupStatus @default(PENDING)
 
@@ -386,6 +394,7 @@ model PickupRequest {
   scheduledAt        DateTime?
   notes              String?
 
+  packages   Package[]
   photos     PickupPhoto[]
   statusLogs PickupStatusLog[]
 
@@ -394,6 +403,7 @@ model PickupRequest {
 
   @@index([driverId, currentStatus])
   @@index([currentStatus, scheduledAt])
+  @@index([createdById])
   @@map("pickup_requests")
 }
 

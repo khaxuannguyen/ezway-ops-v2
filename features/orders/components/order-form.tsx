@@ -45,7 +45,6 @@ export interface OrderFormDefaults {
   customerId?: string;
   serviceId?: string;
   salesUserId?: string | null;
-  chargeableWeightKg?: number | string;
   customerFeeVnd?: number;
   status?: OrderStatus;
   pickupMethod?: PickupMethod;
@@ -178,42 +177,27 @@ export function OrderForm({
 
       <FormSection
         title={"Cước phí"}
-        description={"Nhập cân tính cước và cước thu khách."}
+        description={
+          "Cước thu khách. Cân tính cước tự lấy từ lệnh lấy hàng — đổi dịch vụ sẽ " +
+          "tính lại cước theo hệ số quy đổi mới."
+        }
       >
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field
-            label={"Cân tính cước (kg)"}
-            htmlFor="chargeableWeightKg"
-            required
-            error={err("chargeableWeightKg")}
-          >
-            <Input
-              id="chargeableWeightKg"
-              name="chargeableWeightKg"
-              type="number"
-              step="0.01"
-              min="0.01"
-              defaultValue={defaults?.chargeableWeightKg?.toString() ?? ""}
-              inputMode="decimal"
-            />
-          </Field>
-          <Field
-            label={"Cước thu khách (VND)"}
-            htmlFor="customerFeeVnd"
-            required
-            error={err("customerFeeVnd")}
-          >
-            <Input
-              id="customerFeeVnd"
-              name="customerFeeVnd"
-              type="number"
-              step="1000"
-              min="0"
-              defaultValue={defaults?.customerFeeVnd?.toString() ?? ""}
-              inputMode="numeric"
-            />
-          </Field>
-        </div>
+        <Field
+          label={"Cước thu khách (VND)"}
+          htmlFor="customerFeeVnd"
+          required
+          error={err("customerFeeVnd")}
+        >
+          <Input
+            id="customerFeeVnd"
+            name="customerFeeVnd"
+            type="number"
+            step="1000"
+            min="0"
+            defaultValue={defaults?.customerFeeVnd?.toString() ?? ""}
+            inputMode="numeric"
+          />
+        </Field>
       </FormSection>
 
       <FormSection

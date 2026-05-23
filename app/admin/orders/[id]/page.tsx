@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { LinkButton } from "@/components/ui/link-button";
 import {
@@ -51,8 +51,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // SALE chỉ được xem đơn của chính mình.
   if (user.role === "SALE" && order.salesUserId !== user.id) notFound();
 
+  const packages = order.pickupRequest?.packages ?? [];
   const packageTotals = calculateOrderPackageTotals(
-    order.packages.map((p) => ({
+    packages.map((p) => ({
       actualWeightKg: Number(p.actualWeightKg),
       volumetricWeightKg: Number(p.volumetricWeightKg),
       chargeableWeightKg: Number(p.chargeableWeightKg),
@@ -164,17 +165,20 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{"Danh sách kiện hàng"}</CardTitle>
-          <LinkButton
-            href={`/admin/packages/new?orderId=${order.id}`}
-            size="sm"
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            {"Thêm kiện hàng"}
-          </LinkButton>
+          <CardTitle>{"Kiện hàng"}</CardTitle>
+          {order.pickupRequest ? (
+            <LinkButton
+              href={`/admin/pickups/${order.pickupRequest.id}/edit`}
+              variant="outline"
+              size="sm"
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              {"Sửa kiện hàng"}
+            </LinkButton>
+          ) : null}
         </CardHeader>
         <CardContent className="p-0">
-          {order.packages.length === 0 ? (
+          {packages.length === 0 ? (
             <div className="p-6">
               <EmptyState title={"Đơn hàng chưa có kiện hàng."} />
             </div>
@@ -197,51 +201,33 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 />
               </div>
               <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>{"Mã vận đơn"}</TableHead>
-                  <TableHead>{"Mô tả"}</TableHead>
-                  <TableHead className="text-right">{"Cân thực (kg)"}</TableHead>
-                  <TableHead className="text-right">{"Cân quy đổi (kg)"}</TableHead>
-                  <TableHead className="text-right">{"Cân tính cước (kg)"}</TableHead>
-                  <TableHead className="text-right">{"Thao tác"}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {order.packages.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell>
-                      <Link
-                        href={`/admin/packages/${p.id}`}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        {p.trackingCode ?? "-"}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {p.description ?? "-"}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {formatWeight(p.actualWeightKg.toString())}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {formatWeight(p.volumetricWeightKg.toString())}
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-medium">
-                      {formatWeight(p.chargeableWeightKg.toString())}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link
-                        href={`/admin/packages/${p.id}/edit`}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        {"Chỉnh sửa"}
-                      </Link>
-                    </TableCell>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>{"Mô tả"}</TableHead>
+                    <TableHead className="text-right">{"Cân thực (kg)"}</TableHead>
+                    <TableHead className="text-right">{"Cân quy đổi (kg)"}</TableHead>
+                    <TableHead className="text-right">{"Cân tính cước (kg)"}</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {packages.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="text-sm">
+                        {p.description ?? "-"}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {formatWeight(p.actualWeightKg.toString())}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {formatWeight(p.volumetricWeightKg.toString())}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-medium">
+                        {formatWeight(p.chargeableWeightKg.toString())}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </>
           )}
         </CardContent>
@@ -258,16 +244,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
             >
               {"Xem lệnh"}
             </LinkButton>
-          ) : (
-            <LinkButton href={`/admin/pickups/new?orderId=${order.id}`} size="sm">
-              <Plus className="h-4 w-4" aria-hidden />
-              {"Tạo lệnh lấy hàng"}
-            </LinkButton>
-          )}
+          ) : null}
         </CardHeader>
         <CardContent>
           {order.pickupRequest ? (
-            <div className="flex items-center gap-3 text-sm">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="font-medium">{order.pickupRequest.code}</span>
               <Badge tone={PICKUP_STATUS_TONE[order.pickupRequest.currentStatus]}>
                 {PICKUP_STATUS_LABEL[order.pickupRequest.currentStatus]}
               </Badge>
@@ -278,7 +260,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
               </span>
             </div>
           ) : (
-            <EmptyState title={"Đơn hàng chưa có lệnh lấy hàng."} />
+            <EmptyState title={"Đơn hàng chưa gắn lệnh lấy hàng."} />
           )}
         </CardContent>
       </Card>

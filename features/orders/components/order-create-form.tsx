@@ -19,10 +19,6 @@ import {
   COST_CATEGORY_LABEL,
   COST_CATEGORY_OPTIONS,
 } from "@/lib/enum-labels";
-import {
-  computePackageWeights,
-  calculateOrderPackageTotals,
-} from "@/lib/domain";
 import { formatCurrencyVND } from "@/lib/format";
 import type {
   CostCategory,
@@ -69,6 +65,7 @@ export interface OrderCreateFormDefaults {
   customerId?: string;
   serviceId?: string;
   salesUserId?: string;
+  pickupCode?: string;
   customerFeeVnd?: number;
   status?: OrderStatus;
   pickupMethod?: PickupMethod;
@@ -102,26 +99,6 @@ function uid(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
-}
-
-interface PackageRow {
-  key: string;
-  actualWeightKg: string;
-  lengthCm: string;
-  widthCm: string;
-  heightCm: string;
-  description: string;
-}
-
-function makeEmptyRow(): PackageRow {
-  return {
-    key: uid(),
-    actualWeightKg: "",
-    lengthCm: "",
-    widthCm: "",
-    heightCm: "",
-    description: "",
-  };
 }
 
 interface ExtraRow {
@@ -171,36 +148,12 @@ export function OrderCreateForm({
     FormData
   >(action, null);
 
-  const [rows, setRows] = React.useState<PackageRow[]>(() => [makeEmptyRow()]);
   const [extraRows, setExtraRows] = React.useState<ExtraRow[]>(() => [
     makeEmptyExtra(),
   ]);
   const [supplyRows, setSupplyRows] = React.useState<SupplyRow[]>(() => []);
 
   const err = (n: string) => (state ? fieldError(state, n) : undefined);
-
-  const computed = React.useMemo(() => {
-    return rows.map((r) => {
-      const a = Number(r.actualWeightKg);
-      const l = Number(r.lengthCm);
-      const w = Number(r.widthCm);
-      const h = Number(r.heightCm);
-      if (!(a > 0) || !(l > 0) || !(w > 0) || !(h > 0)) {
-        return { actualWeightKg: 0, volumetricWeightKg: 0, chargeableWeightKg: 0 };
-      }
-      return computePackageWeights({
-        actualWeightKg: a,
-        lengthCm: l,
-        widthCm: w,
-        heightCm: h,
-      });
-    });
-  }, [rows]);
-
-  const totals = React.useMemo(
-    () => calculateOrderPackageTotals(computed),
-    [computed]
-  );
 
   const extraAmounts = React.useMemo(
     () =>
@@ -213,13 +166,6 @@ export function OrderCreateForm({
     [extraRows]
   );
   const extraTotal = extraAmounts.reduce((s, a) => s + a, 0);
-
-  const updateRow = (key: string, patch: Partial<PackageRow>) => {
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  };
-  const addRow = () => setRows((prev) => [...prev, makeEmptyRow()]);
-  const removeRow = (key: string) =>
-    setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.key !== key) : prev));
 
   const updateExtra = (key: string, patch: Partial<ExtraRow>) => {
     setExtraRows((prev) =>
@@ -259,11 +205,6 @@ export function OrderCreateForm({
       {state && !state.ok && state.formError ? (
         <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {state.formError}
-        </div>
-      ) : null}
-      {state && !state.ok && state.fieldErrors?.packages ? (
-        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {state.fieldErrors.packages[0]}
         </div>
       ) : null}
 
@@ -327,118 +268,27 @@ export function OrderCreateForm({
         </div>
       </FormSection>
 
-      <FormSection title={"Kiện hàng"} description={"Thêm ít nhất 1 kiện. Cân quy đổi = D x R x C / 5000. Cân tính cước = max(cân thực, cân quy đổi)."}>
-        <div className="space-y-4">
-          {rows.map((row, i) => {
-            const c = computed[i];
-            return (
-              <div key={row.key} className="rounded-md border border-border bg-card p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">
-                    {"Kiện" + " #" + (i + 1)}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeRow(row.key)}
-                    disabled={rows.length <= 1}
-                    aria-label={"Xóa"}
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden />
-                    <span className="ml-1">{"Xóa"}</span>
-                  </Button>
-                </div>
-                <div className="grid gap-3 md:grid-cols-4">
-                  <Field label={"Cân thực (kg)"} htmlFor={"pkg-actual-" + row.key} required>
-                    <Input
-                      id={"pkg-actual-" + row.key}
-                      name={"packages[" + i + "][actualWeightKg]"}
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={row.actualWeightKg}
-                      onChange={(e) => updateRow(row.key, { actualWeightKg: e.target.value })}
-                      inputMode="decimal"
-                    />
-                  </Field>
-                  <Field label={"Dài (cm)"} htmlFor={"pkg-l-" + row.key} required>
-                    <Input
-                      id={"pkg-l-" + row.key}
-                      name={"packages[" + i + "][lengthCm]"}
-                      type="number"
-                      step="1"
-                      min="1"
-                      value={row.lengthCm}
-                      onChange={(e) => updateRow(row.key, { lengthCm: e.target.value })}
-                      inputMode="numeric"
-                    />
-                  </Field>
-                  <Field label={"Rộng (cm)"} htmlFor={"pkg-w-" + row.key} required>
-                    <Input
-                      id={"pkg-w-" + row.key}
-                      name={"packages[" + i + "][widthCm]"}
-                      type="number"
-                      step="1"
-                      min="1"
-                      value={row.widthCm}
-                      onChange={(e) => updateRow(row.key, { widthCm: e.target.value })}
-                      inputMode="numeric"
-                    />
-                  </Field>
-                  <Field label={"Cao (cm)"} htmlFor={"pkg-h-" + row.key} required>
-                    <Input
-                      id={"pkg-h-" + row.key}
-                      name={"packages[" + i + "][heightCm]"}
-                      type="number"
-                      step="1"
-                      min="1"
-                      value={row.heightCm}
-                      onChange={(e) => updateRow(row.key, { heightCm: e.target.value })}
-                      inputMode="numeric"
-                    />
-                  </Field>
-                </div>
-                <Field label={"Mô tả (tuỳ chọn)"} htmlFor={"pkg-d-" + row.key}>
-                  <Textarea
-                    id={"pkg-d-" + row.key}
-                    name={"packages[" + i + "][description]"}
-                    value={row.description}
-                    onChange={(e) => updateRow(row.key, { description: e.target.value })}
-                    rows={2}
-                  />
-                </Field>
-                <div className="grid gap-2 rounded bg-muted/40 px-3 py-2 text-xs sm:grid-cols-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{"Cân quy đổi (kg)"}</span>
-                    <span className="font-medium tabular-nums">{c.volumetricWeightKg.toFixed(2)} kg</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{"Cân tính cước (kg)"}</span>
-                    <span className="font-semibold tabular-nums text-foreground">{c.chargeableWeightKg.toFixed(2)} kg</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          <Button type="button" variant="outline" onClick={addRow}>
-            <Plus className="h-4 w-4" aria-hidden />
-            <span className="ml-1">{"Thêm kiện"}</span>
-          </Button>
-
-          <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {"Tổng cộng & cân nặng"}
-            </p>
-            <div className="grid gap-1 sm:grid-cols-2">
-              <Row label={"Số kiện"} value={totals.packageCount.toString()} />
-              <Row label={"Tổng cân thực (kg)"} value={totals.totalActualWeight.toFixed(2) + " kg"} />
-              <Row label={"Tổng cân quy đổi (kg)"} value={totals.totalVolumetricWeight.toFixed(2) + " kg"} />
-              <Row label={"Tổng cân tính cước (kg)"} value={totals.totalChargeableWeight.toFixed(2) + " kg"} bold />
-            </div>
-          </div>
-        </div>
+      <FormSection
+        title={"Lệnh lấy hàng"}
+        description={
+          "Nhập mã lệnh lấy hàng (PK-...). Hệ thống lấy kiện hàng từ lệnh đó để " +
+          "tính cân tính cước và cước vận chuyển."
+        }
+      >
+        <Field
+          label={"Mã lệnh lấy hàng"}
+          htmlFor="pickupCode"
+          required
+          error={err("pickupCode")}
+        >
+          <Input
+            id="pickupCode"
+            name="pickupCode"
+            defaultValue={defaults?.pickupCode ?? ""}
+            placeholder="VD: PK-260522-0001"
+            autoComplete="off"
+          />
+        </Field>
       </FormSection>
 
       <FormSection title={"Chi phí phát sinh"} description={"Phí thùng carton, phụ thu hàng khó, và các chi phí khác. Có thể bỏ trống."}>
@@ -648,14 +498,5 @@ export function OrderCreateForm({
         </Button>
       </div>
     </form>
-  );
-}
-
-function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={(bold ? "font-semibold text-foreground" : "font-medium") + " tabular-nums"}>{value}</span>
-    </div>
   );
 }

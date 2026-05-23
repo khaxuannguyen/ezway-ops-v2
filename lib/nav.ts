@@ -5,7 +5,6 @@ import {
   ClipboardList,
   Landmark,
   LayoutDashboard,
-  Package,
   PackageOpen,
   ReceiptText,
   TrendingUp,
@@ -56,8 +55,12 @@ export const ADMIN_NAV: NavSection[] = [
     label: "Vận hành",
     items: [
       { href: "/admin/orders", label: "Đơn hàng", icon: ClipboardList },
-      { href: "/admin/pickups", label: "Lệnh lấy hàng", icon: PackageOpen, roles: OPS },
-      { href: "/admin/packages", label: "Kiện hàng", icon: Package, roles: OPS },
+      {
+        href: "/admin/pickups",
+        label: "Lệnh lấy hàng",
+        icon: PackageOpen,
+        roles: ["ADMIN", "STAFF", "SALE"],
+      },
       { href: "/admin/supplies", label: "Kho vật tư", icon: Warehouse, roles: OPS },
       { href: "/admin/drivers", label: "Tài xế", icon: Truck, roles: OPS },
     ],

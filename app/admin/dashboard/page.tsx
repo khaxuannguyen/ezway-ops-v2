@@ -16,7 +16,7 @@ import { MoneyDisplay } from "@/components/shared/money-display";
 import { OrderStatusBadge } from "@/components/shared/order-status-badge";
 import { prisma } from "@/lib/prisma";
 import { countOrdersForDate } from "@/features/orders/queries";
-import { countProcessingPackages } from "@/features/packages/queries";
+import { countProcessingPackages } from "@/features/pickups/queries";
 import { formatDateTime } from "@/lib/format";
 
 export const metadata: Metadata = {

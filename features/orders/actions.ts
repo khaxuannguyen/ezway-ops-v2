@@ -117,13 +117,71 @@ export async function createOrder(
       return { ok: false, fieldErrors: { customerId: ["Vui lòng chọn khách hàng."] } };
     }
 
-    const packageWeights = data.packages.map((p) =>
-      computePackageWeights({
-        actualWeightKg: p.actualWeightKg,
-        lengthCm: p.lengthCm,
-        widthCm: p.widthCm,
-        heightCm: p.heightCm,
-      })
+    const actor = await getCurrentUser();
+    if (!actor) {
+      return {
+        ok: false,
+        formError: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+      };
+    }
+
+    // Lệnh lấy hàng — nguồn kiện hàng & cân nặng cho đơn.
+    const pickup = await prisma.pickupRequest.findUnique({
+      where: { code: data.pickupCode.trim() },
+      select: {
+        id: true,
+        orderId: true,
+        createdById: true,
+        packages: {
+          select: {
+            id: true,
+            actualWeightKg: true,
+            lengthCm: true,
+            widthCm: true,
+            heightCm: true,
+          },
+        },
+      },
+    });
+    if (!pickup) {
+      return {
+        ok: false,
+        fieldErrors: { pickupCode: ["Không tìm thấy lệnh lấy hàng với mã này."] },
+      };
+    }
+    if (pickup.orderId) {
+      return {
+        ok: false,
+        fieldErrors: { pickupCode: ["Lệnh lấy hàng này đã gắn cho đơn khác."] },
+      };
+    }
+    if (pickup.packages.length === 0) {
+      return {
+        ok: false,
+        fieldErrors: { pickupCode: ["Lệnh lấy hàng chưa có kiện hàng."] },
+      };
+    }
+    // SALE chỉ dùng được mã lệnh lấy hàng do chính mình tạo.
+    if (actor.role === "SALE" && pickup.createdById !== actor.id) {
+      return {
+        ok: false,
+        fieldErrors: {
+          pickupCode: ["Mã lệnh lấy hàng này không thuộc về bạn."],
+        },
+      };
+    }
+
+    // Cân quy đổi tính theo hệ số của dịch vụ đã chọn.
+    const packageWeights = pickup.packages.map((p) =>
+      computePackageWeights(
+        {
+          actualWeightKg: Number(p.actualWeightKg),
+          lengthCm: p.lengthCm,
+          widthCm: p.widthCm,
+          heightCm: p.heightCm,
+        },
+        service.volumetricDivisor
+      )
     );
     const totals = calculateOrderPackageTotals(packageWeights);
 
@@ -135,7 +193,7 @@ export async function createOrder(
       return {
         ok: false,
         fieldErrors: {
-          packages: ["Không có bậc giá phù hợp cho tổng cân tính cước của các kiện."],
+          pickupCode: ["Không có bậc giá phù hợp cho tổng cân tính cước."],
         },
       };
     }
@@ -181,13 +239,6 @@ export async function createOrder(
     const totalFeeVnd = data.customerFeeVnd;
     const profitVnd = totalFeeVnd - baseCostVnd - extraCostTotalVnd;
     const code = await nextOrderCode(new Date());
-    const actor = await getCurrentUser();
-    if (!actor) {
-      return {
-        ok: false,
-        formError: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
-      };
-    }
     const createdById = actor.id;
     const salesUserId = await resolveSalesUserId(actor, data.salesUserId);
 
@@ -214,18 +265,21 @@ export async function createOrder(
         select: { id: true },
       });
 
-      await tx.package.createMany({
-        data: data.packages.map((p, i) => ({
-          orderId: order.id,
-          description: normOpt(p.description),
-          actualWeightKg: p.actualWeightKg,
-          lengthCm: p.lengthCm,
-          widthCm: p.widthCm,
-          heightCm: p.heightCm,
-          volumetricWeightKg: packageWeights[i].volumetricWeightKg,
-          chargeableWeightKg: packageWeights[i].chargeableWeightKg,
-        })),
+      // Gắn lệnh lấy hàng vào đơn.
+      await tx.pickupRequest.update({
+        where: { id: pickup.id },
+        data: { orderId: order.id },
       });
+      // Cập nhật cân quy đổi của kiện theo hệ số dịch vụ (lúc tạo lệnh tính tạm 5000).
+      for (let i = 0; i < pickup.packages.length; i++) {
+        await tx.package.update({
+          where: { id: pickup.packages[i].id },
+          data: {
+            volumetricWeightKg: packageWeights[i].volumetricWeightKg,
+            chargeableWeightKg: packageWeights[i].chargeableWeightKg,
+          },
+        });
+      }
 
       if (extraCostRecords.length > 0) {
         await tx.orderExtraCost.createMany({
@@ -263,7 +317,7 @@ export async function createOrder(
     });
 
     revalidatePath("/admin/orders");
-    revalidatePath("/admin/packages");
+    revalidatePath("/admin/pickups");
     revalidatePath("/admin/supplies");
     revalidatePath("/admin/dashboard");
     redirect(`/admin/orders/${created.id}`);
@@ -293,7 +347,21 @@ export async function updateOrder(
   try {
     const existing = await prisma.order.findUnique({
       where: { id },
-      include: { extraCosts: { select: { amountVnd: true } } },
+      include: {
+        extraCosts: { select: { amountVnd: true } },
+        pickupRequest: {
+          select: {
+            packages: {
+              select: {
+                actualWeightKg: true,
+                lengthCm: true,
+                widthCm: true,
+                heightCm: true,
+              },
+            },
+          },
+        },
+      },
     });
     if (!existing) {
       return { ok: false, formError: "Không tìm thấy đơn hàng." };
@@ -307,12 +375,34 @@ export async function updateOrder(
       return { ok: false, fieldErrors: { serviceId: ["Vui lòng chọn dịch vụ."] } };
     }
 
+    // Cân tính cước lấy lại từ kiện hàng của lệnh lấy hàng (theo hệ số dịch vụ).
+    const pkgs = existing.pickupRequest?.packages ?? [];
+    const chargeableWeightKg =
+      pkgs.length > 0
+        ? calculateOrderPackageTotals(
+            pkgs.map((p) =>
+              computePackageWeights(
+                {
+                  actualWeightKg: Number(p.actualWeightKg),
+                  lengthCm: p.lengthCm,
+                  widthCm: p.widthCm,
+                  heightCm: p.heightCm,
+                },
+                service.volumetricDivisor
+              )
+            )
+          ).totalChargeableWeight
+        : Number(existing.chargeableWeightKg);
+
     const tiers = await loadTiers(service.id);
     let tier, baseCostVnd;
     try {
-      ({ tier, baseCostVnd } = priceOrder(data.chargeableWeightKg, tiers));
+      ({ tier, baseCostVnd } = priceOrder(chargeableWeightKg, tiers));
     } catch {
-      return { ok: false, fieldErrors: { chargeableWeightKg: ["Không có bậc giá phù hợp cho cân tính cước này."] } };
+      return {
+        ok: false,
+        formError: "Không có bậc giá phù hợp cho cân tính cước của đơn này.",
+      };
     }
 
     const extraCostTotalVnd = existing.extraCosts.reduce(
@@ -338,7 +428,7 @@ export async function updateOrder(
         customerId: data.customerId,
         serviceId: service.id,
         salesUserId,
-        chargeableWeightKg: data.chargeableWeightKg,
+        chargeableWeightKg,
         volumetricDivisor: service.volumetricDivisor,
         baseRateSnapshotVnd: tier.amountVnd,
         serviceCostRateIdSnapshot: tier.id,

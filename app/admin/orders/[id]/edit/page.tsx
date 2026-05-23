@@ -24,10 +24,12 @@ interface PageProps {
 
 export default async function EditOrderPage({ params }: PageProps) {
   const user = await requireUser();
+  const isSale = user.role === "SALE";
   const { id } = await params;
   const [order, customers, services, salesUsers] = await Promise.all([
     getOrderById(id),
-    listAllCustomersLite(),
+    // SALE chỉ thấy khách của mình trong ô chọn khách hàng.
+    listAllCustomersLite(isSale ? user.id : undefined),
     listAllServicesLite(),
     listSalesUsersLite(),
   ]);
@@ -62,7 +64,6 @@ export default async function EditOrderPage({ params }: PageProps) {
               customerId: order.customerId,
               serviceId: order.serviceId,
               salesUserId: order.salesUserId,
-              chargeableWeightKg: order.chargeableWeightKg.toString(),
               customerFeeVnd: order.totalFeeVnd,
               status: order.status,
               pickupMethod: order.pickupMethod,

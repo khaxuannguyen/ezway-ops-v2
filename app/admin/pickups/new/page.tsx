@@ -5,31 +5,23 @@ import { LinkButton } from "@/components/ui/link-button";
 import { Card } from "@/components/ui/card";
 import { PickupForm } from "@/features/pickups/components/pickup-form";
 import { createPickup } from "@/features/pickups/actions";
-import {
-  listOrdersWithoutPickup,
-  listDriversLiteForPickup,
-} from "@/features/pickups/queries";
+import { listDriversLiteForPickup } from "@/features/pickups/queries";
+import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Tạo lệnh lấy hàng",
 };
 
-interface PageProps {
-  searchParams: Promise<{ orderId?: string }>;
-}
-
-export default async function NewPickupPage({ searchParams }: PageProps) {
-  const sp = await searchParams;
-  const [orders, drivers] = await Promise.all([
-    listOrdersWithoutPickup(sp.orderId),
-    listDriversLiteForPickup(),
-  ]);
+export default async function NewPickupPage() {
+  const user = await requireUser();
+  const isSale = user.role === "SALE";
+  const drivers = isSale ? [] : await listDriversLiteForPickup();
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={"Tạo lệnh lấy hàng"}
-        description={"Tạo lệnh lấy hàng và gán vào đơn vận chuyển."}
+        description={"Nhập điểm lấy + kiện hàng. Hệ thống cấp mã PK để gắn vào đơn."}
         actions={
           <LinkButton href="/admin/pickups" variant="outline">
             <ArrowLeft className="h-4 w-4" aria-hidden />
@@ -40,10 +32,8 @@ export default async function NewPickupPage({ searchParams }: PageProps) {
       <Card>
         <div className="px-6 pb-6">
           <PickupForm
-            orders={orders}
             drivers={drivers}
-            defaults={{ orderId: sp.orderId }}
-            lockOrder={Boolean(sp.orderId)}
+            showDispatch={!isSale}
             action={createPickup}
             submitLabel={"Tạo lệnh lấy hàng"}
           />

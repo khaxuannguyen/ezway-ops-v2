@@ -22,10 +22,12 @@ interface PageProps {
 
 export default async function NewOrderPage({ searchParams }: PageProps) {
   const user = await requireUser();
+  const isSale = user.role === "SALE";
   const sp = await searchParams;
   const [customers, services, costItems, supplies, salesUsers] =
     await Promise.all([
-      listAllCustomersLite(),
+      // SALE chỉ thấy khách của mình trong ô chọn khách hàng.
+      listAllCustomersLite(isSale ? user.id : undefined),
       listAllServicesLite(),
       listActiveCostItemsLite(),
       listActiveSuppliesLite(),

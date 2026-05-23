@@ -326,42 +326,61 @@ async function main() {
         },
       ];
 
-      const createdOrders: { code: string; id: string }[] = [];
+      let pickupSeq = 1;
       for (const spec of orderSpecs) {
         const service = services[spec.serviceCode];
         const customer = customers[spec.customerCode];
+        const customerInfo = customersData.find(
+          (c) => c.code === spec.customerCode
+        )!;
         const tiers = ratesByService[spec.serviceCode];
         const { tier, baseCostVnd } = priceOrder(spec.chargeableKg, tiers);
         const extraTotal = spec.extras.reduce((s, e) => s + Math.round(e.quantity * e.unitAmountVnd), 0);
         const totalFeeVnd = baseCostVnd + extraTotal + spec.markupVnd;
         const profitVnd = totalFeeVnd - baseCostVnd - extraTotal;
 
-        const existing = await tx.order.findUnique({ where: { code: spec.code } });
+        // Reset dữ liệu seed cũ của đơn này (xoá pickup sẽ cascade xoá kiện hàng).
+        const existing = await tx.order.findUnique({
+          where: { code: spec.code },
+          select: { id: true },
+        });
         if (existing) {
-          await tx.pickupRequest.deleteMany({ where: { orderId: existing.id } });
           await tx.orderExtraCost.deleteMany({ where: { orderId: existing.id } });
-          await tx.package.deleteMany({ where: { orderId: existing.id } });
           await tx.payment.deleteMany({ where: { orderId: existing.id } });
+          await tx.pickupRequest.deleteMany({ where: { orderId: existing.id } });
+          await tx.order.delete({ where: { id: existing.id } });
         }
 
-        const order = await tx.order.upsert({
-          where: { code: spec.code },
-          update: {
-            status: OrderStatus.PENDING,
-            customerId: customer.id,
-            serviceId: service.id,
-            chargeableWeightKg: spec.chargeableKg,
-            volumetricDivisor: 5000,
-            baseRateSnapshotVnd: tier.amountVnd,
-            serviceCostRateIdSnapshot: tier.id,
-            baseCostVnd, extraCostTotalVnd: extraTotal, totalFeeVnd, profitVnd,
-            pickupMethod: spec.pickupMethod,
-            thirdPartyProvider: spec.thirdPartyProvider ?? null,
-            thirdPartyProviderUrl: spec.thirdPartyProviderUrl ?? null,
+        // Lệnh lấy hàng tạo trước — mang kiện hàng.
+        const volKg = volumetric(spec.pkg.lengthCm, spec.pkg.widthCm, spec.pkg.heightCm, 5000);
+        const pickup = await tx.pickupRequest.create({
+          data: {
+            code: "PK-SEED-" + String(pickupSeq++).padStart(4, "0"),
             createdById: admin.id,
-            notes: spec.notes,
+            currentStatus: PickupStatus.PENDING,
+            pickupAddress: customerInfo.address,
+            pickupContactName: customerInfo.name,
+            pickupContactPhone: customerInfo.phone,
+            scheduledAt: new Date("2026-05-20T09:00:00+07:00"),
+            notes: "Lệnh lấy hàng mẫu (seed).",
+            packages: {
+              create: [
+                {
+                  description: spec.pkg.description,
+                  actualWeightKg: spec.pkg.actualWeightKg,
+                  lengthCm: spec.pkg.lengthCm,
+                  widthCm: spec.pkg.widthCm,
+                  heightCm: spec.pkg.heightCm,
+                  volumetricWeightKg: volKg,
+                  chargeableWeightKg: spec.chargeableKg,
+                },
+              ],
+            },
           },
-          create: {
+        });
+
+        const order = await tx.order.create({
+          data: {
             code: spec.code,
             status: OrderStatus.PENDING,
             customerId: customer.id,
@@ -379,18 +398,10 @@ async function main() {
           },
         });
 
-        const volKg = volumetric(spec.pkg.lengthCm, spec.pkg.widthCm, spec.pkg.heightCm, 5000);
-        await tx.package.create({
-          data: {
-            orderId: order.id,
-            description: spec.pkg.description,
-            actualWeightKg: spec.pkg.actualWeightKg,
-            lengthCm: spec.pkg.lengthCm,
-            widthCm: spec.pkg.widthCm,
-            heightCm: spec.pkg.heightCm,
-            volumetricWeightKg: volKg,
-            chargeableWeightKg: spec.chargeableKg,
-          },
+        // Gắn lệnh lấy hàng vào đơn.
+        await tx.pickupRequest.update({
+          where: { id: pickup.id },
+          data: { orderId: order.id },
         });
 
         for (const e of spec.extras) {
@@ -414,42 +425,26 @@ async function main() {
           data: { orderId: order.id, amountVnd: totalFeeVnd, status: PaymentStatus.UNPAID },
         });
 
-        createdOrders.push({ code: order.code, id: order.id });
-      }
-
-      // 9. PickupRequest for EZW-2605-0001
-      const order0001 = createdOrders.find((o) => o.code === "EZW-2605-0001");
-      if (order0001) {
-        const pickup = await tx.pickupRequest.create({
-          data: {
-            orderId: order0001.id,
-            currentStatus: PickupStatus.PENDING,
-            pickupAddress: "12 Lê Lợi, P. Bến Nghé, Q.1, TP.HCM",
-            pickupContactName: "Nguyễn Thị Hương",
-            pickupContactPhone: "0911111111",
-            scheduledAt: new Date("2026-05-20T09:00:00+07:00"),
-            notes: "Khách yêu cầu pickup sáng 20/05.",
-          },
-        });
-
-        await tx.pickupStatusLog.create({
-          data: {
-            pickupRequestId: pickup.id,
-            fromStatus: null,
-            toStatus: PickupStatus.PENDING,
-            byUserId: admin.id,
-            note: "Tạo yêu cầu pickup",
-          },
-        });
-
-        await tx.pickupPhoto.create({
-          data: {
-            pickupRequestId: pickup.id,
-            photoUrl: "https://placeholder.ezway.local/pickup-before-1.jpg",
-            photoType: PickupPhotoType.PICKUP_BEFORE,
-            uploadedByUserId: admin.id,
-          },
-        });
+        // Lịch sử + ảnh cho lệnh lấy hàng đầu tiên.
+        if (spec.code === "EZW-2605-0001") {
+          await tx.pickupStatusLog.create({
+            data: {
+              pickupRequestId: pickup.id,
+              fromStatus: null,
+              toStatus: PickupStatus.PENDING,
+              byUserId: admin.id,
+              note: "Tạo yêu cầu pickup",
+            },
+          });
+          await tx.pickupPhoto.create({
+            data: {
+              pickupRequestId: pickup.id,
+              photoUrl: "https://placeholder.ezway.local/pickup-before-1.jpg",
+              photoType: PickupPhotoType.PICKUP_BEFORE,
+              uploadedByUserId: admin.id,
+            },
+          });
+        }
       }
 
       // 10. Summary

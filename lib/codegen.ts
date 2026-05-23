@@ -17,6 +17,10 @@ export function buildOrderCode(seq: number, date: Date = new Date()): string {
   return `EZW-${formatDateYYMMDD(date)}-${padSequence(seq, 4)}`;
 }
 
+export function buildPickupCode(seq: number, date: Date = new Date()): string {
+  return `PK-${formatDateYYMMDD(date)}-${padSequence(seq, 4)}`;
+}
+
 export function buildStartupExpenseCode(seq: number): string {
   return `CP-${padSequence(seq, 4)}`;
 }

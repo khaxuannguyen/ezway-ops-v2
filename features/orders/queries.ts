@@ -27,7 +27,6 @@ export interface OrderListRow {
   customer: { id: string; code: string; name: string };
   service: { id: string; code: string; name: string };
   salesUser: { id: string; name: string } | null;
-  packageCount: number;
 }
 
 export interface OrderListResult {
@@ -75,7 +74,6 @@ export async function listOrders(
         customer: { select: { id: true, code: true, name: true } },
         service: { select: { id: true, code: true, name: true } },
         salesUser: { select: { id: true, name: true } },
-        _count: { select: { packages: true } },
       },
     }),
   ]);
@@ -94,7 +92,6 @@ export async function listOrders(
       customer: o.customer,
       service: o.service,
       salesUser: o.salesUser,
-      packageCount: o._count.packages,
     })),
     meta: buildPageMeta(total, page, pageSize),
   };
@@ -106,7 +103,6 @@ export async function getOrderById(id: string) {
     include: {
       customer: true,
       service: true,
-      packages: { orderBy: { createdAt: "asc" } },
       payments: { orderBy: { createdAt: "desc" } },
       extraCosts: { orderBy: { appliedAt: "desc" } },
       createdBy: { select: { id: true, name: true, email: true } },
@@ -114,8 +110,10 @@ export async function getOrderById(id: string) {
       pickupRequest: {
         select: {
           id: true,
+          code: true,
           currentStatus: true,
           driver: { select: { user: { select: { name: true } } } },
+          packages: { orderBy: { createdAt: "asc" } },
         },
       },
       stockMovements: {

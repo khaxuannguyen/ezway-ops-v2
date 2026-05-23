@@ -10,21 +10,25 @@ export interface ListPickupsInput {
   q?: string;
   status?: PickupStatus;
   driverId?: string;
+  /** Lọc theo người tạo (dùng cho góc nhìn SALE — chỉ lệnh do mình tạo). */
+  createdById?: string;
   page?: number;
   pageSize?: number;
 }
 
 export interface PickupListRow {
   id: string;
+  code: string;
   currentStatus: PickupStatus;
   pickupAddress: string;
   pickupContactName: string;
   pickupContactPhone: string;
   scheduledAt: Date | null;
   createdAt: Date;
-  order: { id: string; code: string };
-  customerName: string;
+  packageCount: number;
+  order: { id: string; code: string } | null;
   driverName: string | null;
+  createdByName: string;
 }
 
 export interface PickupListResult {
@@ -42,9 +46,11 @@ export async function listPickups(
   const where = {
     ...(input.status ? { currentStatus: input.status } : {}),
     ...(input.driverId ? { driverId: input.driverId } : {}),
+    ...(input.createdById ? { createdById: input.createdById } : {}),
     ...(q
       ? {
           OR: [
+            { code: { contains: q, mode: "insensitive" as const } },
             { pickupContactName: { contains: q, mode: "insensitive" as const } },
             { pickupContactPhone: { contains: q } },
             { pickupAddress: { contains: q, mode: "insensitive" as const } },
@@ -62,14 +68,10 @@ export async function listPickups(
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
-        order: {
-          select: {
-            id: true,
-            code: true,
-            customer: { select: { name: true } },
-          },
-        },
+        order: { select: { id: true, code: true } },
         driver: { select: { user: { select: { name: true } } } },
+        createdBy: { select: { name: true } },
+        _count: { select: { packages: true } },
       },
     }),
   ]);
@@ -77,15 +79,17 @@ export async function listPickups(
   return {
     rows: rows.map((p) => ({
       id: p.id,
+      code: p.code,
       currentStatus: p.currentStatus,
       pickupAddress: p.pickupAddress,
       pickupContactName: p.pickupContactName,
       pickupContactPhone: p.pickupContactPhone,
       scheduledAt: p.scheduledAt,
       createdAt: p.createdAt,
-      order: { id: p.order.id, code: p.order.code },
-      customerName: p.order.customer.name,
+      packageCount: p._count.packages,
+      order: p.order,
       driverName: p.driver?.user.name ?? null,
+      createdByName: p.createdBy.name,
     })),
     meta: buildPageMeta(total, page, pageSize),
   };
@@ -110,28 +114,31 @@ export async function getPickupById(id: string) {
           user: { select: { name: true } },
         },
       },
+      createdBy: { select: { id: true, name: true } },
+      packages: { orderBy: { createdAt: "asc" } },
     },
   });
 }
 
-export async function listOrdersWithoutPickup(includeOrderId?: string) {
-  return prisma.order.findMany({
+/** Số kiện hàng thuộc các đơn đang xử lý — dùng cho dashboard. */
+export async function countProcessingPackages(): Promise<number> {
+  return prisma.package.count({
     where: {
-      deletedAt: null,
-      OR: [
-        { pickupRequest: { is: null } },
-        ...(includeOrderId ? [{ id: includeOrderId }] : []),
-      ],
-    },
-    select: {
-      id: true,
-      code: true,
-      customer: {
-        select: { code: true, name: true, phone: true, address: true },
+      pickupRequest: {
+        order: {
+          deletedAt: null,
+          status: {
+            in: [
+              "PENDING",
+              "CONFIRMED",
+              "PICKING_UP",
+              "AT_WAREHOUSE",
+              "IN_TRANSIT",
+            ],
+          },
+        },
       },
     },
-    orderBy: { createdAt: "desc" },
-    take: 200,
   });
 }
 

@@ -7,10 +7,10 @@ import { Card } from "@/components/ui/card";
 import { PickupForm } from "@/features/pickups/components/pickup-form";
 import {
   getPickupById,
-  listOrdersWithoutPickup,
   listDriversLiteForPickup,
 } from "@/features/pickups/queries";
 import { updatePickup } from "@/features/pickups/actions";
+import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Cập nhật lệnh lấy hàng",
@@ -21,22 +21,22 @@ interface PageProps {
 }
 
 export default async function EditPickupPage({ params }: PageProps) {
+  const user = await requireUser();
   const { id } = await params;
   const pickup = await getPickupById(id);
   if (!pickup) notFound();
 
-  const [orders, drivers] = await Promise.all([
-    listOrdersWithoutPickup(pickup.order.id),
-    listDriversLiteForPickup(),
-  ]);
-
+  const isSale = user.role === "SALE";
+  // SALE chỉ sửa lệnh do chính mình tạo.
+  if (isSale && pickup.createdById !== user.id) notFound();
+  const drivers = isSale ? [] : await listDriversLiteForPickup();
   const action = updatePickup.bind(null, pickup.id);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={"Cập nhật lệnh lấy hàng" + " - " + pickup.order.code}
-        description={"Chỉnh sửa thông tin lệnh lấy hàng."}
+        title={"Cập nhật lệnh lấy hàng - " + pickup.code}
+        description={"Chỉnh sửa điểm lấy, kiện hàng và lịch hẹn."}
         actions={
           <LinkButton href={`/admin/pickups/${pickup.id}`} variant="outline">
             <ArrowLeft className="h-4 w-4" aria-hidden />
@@ -47,11 +47,9 @@ export default async function EditPickupPage({ params }: PageProps) {
       <Card>
         <div className="px-6 pb-6">
           <PickupForm
-            orders={orders}
             drivers={drivers}
-            lockOrder
+            showDispatch={!isSale}
             defaults={{
-              orderId: pickup.order.id,
               driverId: pickup.driver?.id ?? "",
               pickupAddress: pickup.pickupAddress,
               pickupContactName: pickup.pickupContactName,
@@ -59,6 +57,13 @@ export default async function EditPickupPage({ params }: PageProps) {
               scheduledAt: pickup.scheduledAt,
               notes: pickup.notes,
               currentStatus: pickup.currentStatus,
+              packages: pickup.packages.map((p) => ({
+                actualWeightKg: p.actualWeightKg.toString(),
+                lengthCm: String(p.lengthCm),
+                widthCm: String(p.widthCm),
+                heightCm: String(p.heightCm),
+                description: p.description ?? "",
+              })),
             }}
             action={action}
             submitLabel={"Lưu thay đổi"}

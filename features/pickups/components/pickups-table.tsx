@@ -13,15 +13,20 @@ export function PickupsTable({ rows }: { rows: PickupListRow[] }) {
   const columns = React.useMemo<ColumnDef<PickupListRow>[]>(
     () => [
       {
-        accessorKey: "order.code",
-        header: "Khách hàng",
+        accessorKey: "code",
+        header: "Mã lệnh",
         cell: ({ row }) => (
-          <Link href={`/admin/pickups/${row.original.id}`} className="flex flex-col">
+          <Link
+            href={`/admin/pickups/${row.original.id}`}
+            className="flex flex-col"
+          >
             <span className="font-medium text-primary hover:underline">
-              {row.original.order.code}
+              {row.original.code}
             </span>
             <span className="text-xs text-muted-foreground">
-              {row.original.customerName}
+              {row.original.order
+                ? "Đơn " + row.original.order.code
+                : "Chưa gắn đơn"}
             </span>
           </Link>
         ),
@@ -39,6 +44,15 @@ export function PickupsTable({ rows }: { rows: PickupListRow[] }) {
         ),
       },
       {
+        accessorKey: "packageCount",
+        header: "Số kiện",
+        cell: ({ row }) => (
+          <span className="tabular-nums font-medium">
+            {row.original.packageCount}
+          </span>
+        ),
+      },
+      {
         accessorKey: "driverName",
         header: "Tài xế",
         cell: ({ row }) =>
@@ -49,11 +63,22 @@ export function PickupsTable({ rows }: { rows: PickupListRow[] }) {
           ),
       },
       {
+        accessorKey: "createdByName",
+        header: "Người tạo",
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">
+            {row.original.createdByName}
+          </span>
+        ),
+      },
+      {
         accessorKey: "scheduledAt",
         header: "Thời gian hẹn lấy",
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
-            {row.original.scheduledAt ? formatDateTime(row.original.scheduledAt) : "Chưa hẹn lịch"}
+            {row.original.scheduledAt
+              ? formatDateTime(row.original.scheduledAt)
+              : "Chưa hẹn lịch"}
           </span>
         ),
       },
