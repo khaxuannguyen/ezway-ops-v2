@@ -75,6 +75,7 @@ export function parsePickupFormData(fd: FormData): Record<string, unknown> {
 
 export const pickupStatusSchema = z.object({
   currentStatus: z.nativeEnum(PickupStatus),
+  note: z.string().trim().max(500).optional().or(z.literal("")),
 });
 
 export function parsePickupStatusFormData(
@@ -82,5 +83,6 @@ export function parsePickupStatusFormData(
 ): Record<string, unknown> {
   return {
     currentStatus: (fd.get("currentStatus") ?? "PENDING").toString(),
+    note: (fd.get("note") ?? "").toString(),
   };
 }

@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/table";
 import { OrderStatusBadge } from "@/components/shared/order-status-badge";
 import { PickupStatusForm } from "@/features/pickups/components/pickup-status-form";
-import { getPickupById } from "@/features/pickups/queries";
+import { PickupStatusTimeline } from "@/features/pickups/components/pickup-status-timeline";
+import { getPickupById, listPickupStatusLogs } from "@/features/pickups/queries";
 import { updatePickupStatus } from "@/features/pickups/actions";
 import { formatDateTime, formatWeight } from "@/lib/format";
 import { calculateOrderPackageTotals } from "@/lib/domain";
@@ -42,6 +43,7 @@ export default async function PickupDetailPage({ params }: PageProps) {
   // SALE chỉ xem lệnh do chính mình tạo.
   if (isSale && pickup.createdById !== user.id) notFound();
   const statusAction = updatePickupStatus.bind(null, pickup.id);
+  const statusLogs = await listPickupStatusLogs(pickup.id);
 
   const totals = calculateOrderPackageTotals(
     pickup.packages.map((p) => ({
@@ -223,6 +225,15 @@ export default async function PickupDetailPage({ params }: PageProps) {
               </Table>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{"Lịch sử trạng thái"}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PickupStatusTimeline logs={statusLogs} />
         </CardContent>
       </Card>
     </div>

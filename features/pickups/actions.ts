@@ -7,6 +7,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { buildPickupCode } from "@/lib/codegen";
 import { computePackageWeights } from "@/lib/domain";
 import type { ActionResult, FieldErrors } from "@/lib/action-result";
+import type { Prisma } from "@/app/generated/prisma/client";
+import type { PickupStatus } from "@/app/generated/prisma/enums";
 import {
   pickupInputSchema,
   pickupStatusSchema,
@@ -14,6 +16,20 @@ import {
   parsePickupStatusFormData,
   type PickupPackageRowInput,
 } from "./schemas";
+
+/** Ghi 1 dòng lịch sử khi trạng thái lệnh lấy hàng thay đổi (kể cả lần đầu). */
+async function recordPickupStatusChange(
+  tx: Prisma.TransactionClient,
+  pickupRequestId: string,
+  fromStatus: PickupStatus | null,
+  toStatus: PickupStatus,
+  byUserId: string,
+  note: string | null
+): Promise<void> {
+  await tx.pickupStatusLog.create({
+    data: { pickupRequestId, fromStatus, toStatus, byUserId, note },
+  });
+}
 
 function normOpt(v: string | undefined): string | null {
   if (!v) return null;
@@ -120,13 +136,14 @@ export async function createPickup(
     }
 
     const code = await nextPickupCode(new Date());
+    const initialStatus: PickupStatus = isSale ? "PENDING" : data.currentStatus;
     const created = await prisma.$transaction(async (tx) => {
       const pickup = await tx.pickupRequest.create({
         data: {
           code,
           createdById: actor.id,
           driverId,
-          currentStatus: isSale ? "PENDING" : data.currentStatus,
+          currentStatus: initialStatus,
           pickupAddress: data.pickupAddress,
           pickupContactName: data.pickupContactName,
           pickupContactPhone: data.pickupContactPhone,
@@ -141,6 +158,15 @@ export async function createPickup(
           pickupRequestId: pickup.id,
         })),
       });
+      // Mốc đầu của lịch sử trạng thái.
+      await recordPickupStatusChange(
+        tx,
+        pickup.id,
+        null,
+        initialStatus,
+        actor.id,
+        null
+      );
       return pickup;
     });
 
@@ -234,6 +260,17 @@ export async function updatePickup(
           pickupRequestId: id,
         })),
       });
+      // Log lịch sử nếu trạng thái thực sự thay đổi.
+      if (currentStatus !== existing.currentStatus) {
+        await recordPickupStatusChange(
+          tx,
+          id,
+          existing.currentStatus,
+          currentStatus,
+          actor.id,
+          null
+        );
+      }
     });
 
     revalidatePath("/admin/pickups");
@@ -273,15 +310,36 @@ export async function updatePickupStatus(
 
     const existing = await prisma.pickupRequest.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, currentStatus: true },
     });
     if (!existing) {
       return { ok: false, formError: "Không tìm thấy lệnh lấy hàng." };
     }
 
-    await prisma.pickupRequest.update({
-      where: { id },
-      data: { currentStatus: parsed.data.currentStatus },
+    const nextStatus = parsed.data.currentStatus;
+    const note = normOpt(parsed.data.note);
+
+    if (nextStatus === existing.currentStatus && !note) {
+      // Không có gì để ghi nhận.
+      return { ok: true, data: { id } };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (nextStatus !== existing.currentStatus) {
+        await tx.pickupRequest.update({
+          where: { id },
+          data: { currentStatus: nextStatus },
+        });
+      }
+      // Vẫn ghi log khi user nhập ghi chú dù trạng thái không đổi (vd cập nhật tình hình).
+      await recordPickupStatusChange(
+        tx,
+        id,
+        existing.currentStatus,
+        nextStatus,
+        actor.id,
+        note
+      );
     });
 
     revalidatePath("/admin/pickups");

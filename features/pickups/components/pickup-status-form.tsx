@@ -4,6 +4,8 @@ import * as React from "react";
 import { useActionState } from "react";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Field } from "@/components/shared/field";
 import { type ActionResult } from "@/lib/action-result";
 import { PICKUP_STATUS_LABEL, PICKUP_STATUS_OPTIONS } from "@/lib/enum-labels";
 import type { PickupStatus } from "@/app/generated/prisma/enums";
@@ -22,6 +24,18 @@ export function PickupStatusForm({ current, action }: PickupStatusFormProps) {
     FormData
   >(action, null);
 
+  // Reset textarea note sau khi submit thành công.
+  const noteRef = React.useRef<HTMLTextAreaElement>(null);
+  const wasOk = React.useRef(false);
+  React.useEffect(() => {
+    if (state?.ok && !wasOk.current) {
+      wasOk.current = true;
+      if (noteRef.current) noteRef.current.value = "";
+    } else if (!state?.ok) {
+      wasOk.current = false;
+    }
+  }, [state]);
+
   return (
     <form action={formAction} className="space-y-2">
       <div className="flex items-center gap-2">
@@ -36,6 +50,15 @@ export function PickupStatusForm({ current, action }: PickupStatusFormProps) {
           {pending ? "Đang lưu..." : "Lưu"}
         </Button>
       </div>
+      <Field label={"Ghi chú (tuỳ chọn)"} htmlFor="note">
+        <Textarea
+          ref={noteRef}
+          id="note"
+          name="note"
+          rows={2}
+          placeholder={"VD: Tài xế đã liên hệ khách, hẹn 14h chiều mai..."}
+        />
+      </Field>
       {state && !state.ok && state.formError ? (
         <p className="text-xs text-destructive">{state.formError}</p>
       ) : null}

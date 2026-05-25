@@ -120,6 +120,33 @@ export async function getPickupById(id: string) {
   });
 }
 
+export interface PickupStatusLogRow {
+  id: string;
+  fromStatus: import("@/app/generated/prisma/enums").PickupStatus | null;
+  toStatus: import("@/app/generated/prisma/enums").PickupStatus;
+  note: string | null;
+  at: Date;
+  byUser: { id: string; name: string };
+}
+
+export async function listPickupStatusLogs(
+  pickupRequestId: string
+): Promise<PickupStatusLogRow[]> {
+  const rows = await prisma.pickupStatusLog.findMany({
+    where: { pickupRequestId },
+    orderBy: { at: "desc" },
+    include: { byUser: { select: { id: true, name: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    fromStatus: r.fromStatus,
+    toStatus: r.toStatus,
+    note: r.note,
+    at: r.at,
+    byUser: r.byUser,
+  }));
+}
+
 /** Số kiện hàng thuộc các đơn đang xử lý — dùng cho dashboard. */
 export async function countProcessingPackages(): Promise<number> {
   return prisma.package.count({
