@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import type { ActionResult, FieldErrors } from "@/lib/action-result";
 import { driverInputSchema, parseDriverFormData } from "./schemas";
 
@@ -36,6 +37,7 @@ export async function createDriver(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN", "STAFF");
   const parsed = driverInputSchema.safeParse(parseDriverFormData(formData));
   if (!parsed.success) {
     const fieldErrors: FieldErrors = {};
@@ -87,6 +89,7 @@ export async function updateDriver(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN", "STAFF");
   const parsed = driverInputSchema.safeParse(parseDriverFormData(formData));
   if (!parsed.success) {
     const fieldErrors: FieldErrors = {};

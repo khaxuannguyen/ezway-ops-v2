@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import type { ActionResult, FieldErrors } from "@/lib/action-result";
 import { serviceInputSchema, parseServiceFormData } from "./schemas";
 
@@ -36,6 +37,7 @@ export async function createService(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN");
   const parsed = serviceInputSchema.safeParse(parseServiceFormData(formData));
   if (!parsed.success) {
     const fieldErrors: FieldErrors = {};
@@ -79,6 +81,7 @@ export async function updateService(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN");
   const parsed = serviceInputSchema.safeParse(parseServiceFormData(formData));
   if (!parsed.success) {
     const fieldErrors: FieldErrors = {};

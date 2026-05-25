@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import type { ActionResult, FieldErrors } from "@/lib/action-result";
 import {
   costRateInputSchema,
@@ -49,6 +50,7 @@ export async function createCostRate(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN");
   const parsed = costRateInputSchema.safeParse(parseCostRateFormData(formData));
   if (!parsed.success) {
     const fieldErrors: FieldErrors = {};
@@ -106,6 +108,7 @@ export async function updateCostRate(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN");
   const parsed = costRateInputSchema.safeParse(parseCostRateFormData(formData));
   if (!parsed.success) {
     const fieldErrors: FieldErrors = {};
@@ -174,6 +177,7 @@ export async function createCostRatesBulk(
   _prev: ActionResult<{ serviceId: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ serviceId: string }>> {
+  await requireRole("ADMIN");
   const parsed = costRateBulkInputSchema.safeParse(
     parseCostRateBulkFormData(formData)
   );
@@ -259,6 +263,7 @@ export async function replaceCostRates(
   _prev: ActionResult<{ serviceId: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ serviceId: string }>> {
+  await requireRole("ADMIN");
   const parsed = costRateBulkInputSchema.safeParse(
     parseCostRateBulkFormData(formData)
   );
@@ -340,6 +345,7 @@ export async function replaceCostRates(
 }
 
 export async function deleteCostRate(rateId: string): Promise<void> {
+  await requireRole("ADMIN");
   const rate = await prisma.serviceCostRate.findUnique({
     where: { id: rateId },
     select: { id: true, serviceId: true },

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import type { ActionResult, FieldErrors } from "@/lib/action-result";
 import { costItemInputSchema, parseCostItemFormData } from "./schemas";
 
@@ -42,6 +43,7 @@ export async function createCostItem(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN");
   const parsed = costItemInputSchema.safeParse(parseCostItemFormData(formData));
   if (!parsed.success) {
     const fieldErrors: FieldErrors = {};
@@ -85,6 +87,7 @@ export async function updateCostItem(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN");
   const parsed = costItemInputSchema.safeParse(parseCostItemFormData(formData));
   if (!parsed.success) {
     const fieldErrors: FieldErrors = {};

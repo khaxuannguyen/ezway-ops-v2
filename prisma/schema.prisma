@@ -536,6 +536,9 @@ model StockMovement {
   createdById   String
   createdBy     User              @relation("StockMovementCreatedBy", fields: [createdById], references: [id])
   createdAt     DateTime          @default(now())
+  /// Dấu hoàn kho cho OUT movement — khi đơn bị huỷ, OUT được hoàn (set timestamp này).
+  /// Tránh hoàn 2 lần nếu huỷ → un-cancel → huỷ lại.
+  refundedAt    DateTime?
 
   @@index([supplyId, createdAt])
   @@index([orderId])

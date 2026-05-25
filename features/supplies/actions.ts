@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import { getActorUserId } from "@/lib/current-user";
 import type { ActionResult, FieldErrors } from "@/lib/action-result";
 import {
@@ -54,6 +55,7 @@ export async function createSupply(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN", "STAFF");
   const parsed = supplyInputSchema.safeParse(parseSupplyFormData(formData));
   if (!parsed.success) {
     return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error.issues) };
@@ -90,6 +92,7 @@ export async function updateSupply(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN", "STAFF");
   const parsed = supplyInputSchema.safeParse(parseSupplyFormData(formData));
   if (!parsed.success) {
     return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error.issues) };
@@ -127,6 +130,7 @@ export async function recordStockMovement(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN", "STAFF");
   const parsed = stockMovementSchema.safeParse(
     parseStockMovementFormData(formData)
   );

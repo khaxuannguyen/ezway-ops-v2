@@ -5,7 +5,12 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { buildPickupCode } from "@/lib/codegen";
-import { computePackageWeights } from "@/lib/domain";
+import {
+  computePackageWeights,
+  calculateOrderPackageTotals,
+  priceOrder,
+  type RateTier,
+} from "@/lib/domain";
 import type { ActionResult, FieldErrors } from "@/lib/action-result";
 import type { Prisma } from "@/app/generated/prisma/client";
 import type { PickupStatus } from "@/app/generated/prisma/enums";
@@ -16,6 +21,103 @@ import {
   parsePickupStatusFormData,
   type PickupPackageRowInput,
 } from "./schemas";
+
+/**
+ * Sửa kiện hàng pickup ĐÃ gắn đơn → tự tính lại cân quy đổi của từng kiện theo
+ * hệ số dịch vụ + recompute baseCostVnd/profitVnd/chargeableWeightKg của Order.
+ * Giữ nguyên totalFeeVnd (cước thu khách đã chốt) — chỉ chi phí gốc đổi.
+ */
+async function syncOrderFromPickup(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<void> {
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      totalFeeVnd: true,
+      extraCostTotalVnd: true,
+      serviceId: true,
+      service: { select: { volumetricDivisor: true } },
+      pickupRequest: {
+        select: {
+          packages: {
+            select: {
+              id: true,
+              actualWeightKg: true,
+              lengthCm: true,
+              widthCm: true,
+              heightCm: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!order || !order.pickupRequest || order.pickupRequest.packages.length === 0) {
+    return;
+  }
+
+  const divisor = order.service.volumetricDivisor;
+  const recomputed = order.pickupRequest.packages.map((p) => ({
+    id: p.id,
+    weights: computePackageWeights(
+      {
+        actualWeightKg: Number(p.actualWeightKg),
+        lengthCm: p.lengthCm,
+        widthCm: p.widthCm,
+        heightCm: p.heightCm,
+      },
+      divisor
+    ),
+  }));
+
+  // Cập nhật cân quy đổi của từng kiện theo divisor dịch vụ.
+  for (const r of recomputed) {
+    await tx.package.update({
+      where: { id: r.id },
+      data: {
+        volumetricWeightKg: r.weights.volumetricWeightKg,
+        chargeableWeightKg: r.weights.chargeableWeightKg,
+      },
+    });
+  }
+
+  const totals = calculateOrderPackageTotals(recomputed.map((r) => r.weights));
+
+  const rates = await tx.serviceCostRate.findMany({
+    where: { serviceId: order.serviceId },
+    orderBy: { minWeightKg: "asc" },
+  });
+  const tiers: RateTier[] = rates.map((r) => ({
+    id: r.id,
+    minWeightKg: Number(r.minWeightKg),
+    maxWeightKg: Number(r.maxWeightKg),
+    rateType: r.rateType as RateTier["rateType"],
+    amountVnd: r.amountVnd,
+  }));
+
+  let tier, baseCostVnd: number;
+  try {
+    ({ tier, baseCostVnd } = priceOrder(totals.totalChargeableWeight, tiers));
+  } catch {
+    // Không có bậc giá phù hợp — bỏ qua sync, đơn giữ số cũ.
+    return;
+  }
+
+  const profitVnd = order.totalFeeVnd - baseCostVnd - order.extraCostTotalVnd;
+
+  await tx.order.update({
+    where: { id: orderId },
+    data: {
+      chargeableWeightKg: totals.totalChargeableWeight,
+      baseRateSnapshotVnd: tier.amountVnd,
+      serviceCostRateIdSnapshot: tier.id,
+      baseCostVnd,
+      profitVnd,
+    },
+  });
+}
 
 /** Ghi 1 dòng lịch sử khi trạng thái lệnh lấy hàng thay đổi (kể cả lần đầu). */
 async function recordPickupStatusChange(
@@ -260,6 +362,10 @@ export async function updatePickup(
           pickupRequestId: id,
         })),
       });
+      // Nếu pickup đã gắn đơn → tự đồng bộ cân/cước theo divisor dịch vụ.
+      if (existing.orderId) {
+        await syncOrderFromPickup(tx, existing.orderId);
+      }
       // Log lịch sử nếu trạng thái thực sự thay đổi.
       if (currentStatus !== existing.currentStatus) {
         await recordPickupStatusChange(

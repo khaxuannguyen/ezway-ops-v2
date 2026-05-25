@@ -13,6 +13,7 @@ import {
 } from "@/lib/domain";
 import type { ActionResult, FieldErrors } from "@/lib/action-result";
 import type { CostPricingType } from "@/app/generated/prisma/enums";
+import type { Prisma } from "@/app/generated/prisma/client";
 import {
   orderCreateInputSchema,
   orderInputSchema,
@@ -49,6 +50,52 @@ async function loadTiers(serviceId: string): Promise<RateTier[]> {
     rateType: r.rateType as RateTier["rateType"],
     amountVnd: r.amountVnd,
   }));
+}
+
+/**
+ * Hoàn kho mọi OUT movement chưa được hoàn của đơn này (idempotent qua refundedAt).
+ * Gọi trong transaction khi đơn chuyển sang CANCELLED.
+ */
+async function refundOrderStockMovements(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  orderCode: string,
+  actorUserId: string
+): Promise<void> {
+  const outs = await tx.stockMovement.findMany({
+    where: { orderId, type: "OUT", refundedAt: null },
+    select: { id: true, supplyId: true, quantityDelta: true },
+  });
+  for (const out of outs) {
+    // OUT có quantityDelta âm; hoàn = số dương ngược dấu.
+    const refundQty = -out.quantityDelta;
+    if (refundQty <= 0) continue;
+    const supply = await tx.supply.findUnique({
+      where: { id: out.supplyId },
+      select: { currentStock: true },
+    });
+    if (!supply) continue;
+    const stockAfter = supply.currentStock + refundQty;
+    await tx.stockMovement.create({
+      data: {
+        supplyId: out.supplyId,
+        type: "IN",
+        quantityDelta: refundQty,
+        stockAfter,
+        orderId,
+        createdById: actorUserId,
+        note: `Tự hoàn kho do huỷ đơn ${orderCode}`,
+      },
+    });
+    await tx.supply.update({
+      where: { id: out.supplyId },
+      data: { currentStock: stockAfter },
+    });
+    await tx.stockMovement.update({
+      where: { id: out.id },
+      data: { refundedAt: new Date() },
+    });
+  }
 }
 
 async function nextOrderCode(date: Date): Promise<string> {
@@ -421,28 +468,37 @@ export async function updateOrder(
     }
     const salesUserId = await resolveSalesUserId(actor, data.salesUserId);
 
-    await prisma.order.update({
-      where: { id },
-      data: {
-        status: data.status,
-        customerId: data.customerId,
-        serviceId: service.id,
-        salesUserId,
-        chargeableWeightKg,
-        volumetricDivisor: service.volumetricDivisor,
-        baseRateSnapshotVnd: tier.amountVnd,
-        serviceCostRateIdSnapshot: tier.id,
-        baseCostVnd,
-        extraCostTotalVnd,
-        totalFeeVnd,
-        profitVnd,
-        pickupMethod: data.pickupMethod,
-        notes: normOpt(data.notes),
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id },
+        data: {
+          status: data.status,
+          customerId: data.customerId,
+          serviceId: service.id,
+          salesUserId,
+          chargeableWeightKg,
+          volumetricDivisor: service.volumetricDivisor,
+          baseRateSnapshotVnd: tier.amountVnd,
+          serviceCostRateIdSnapshot: tier.id,
+          baseCostVnd,
+          extraCostTotalVnd,
+          totalFeeVnd,
+          profitVnd,
+          pickupMethod: data.pickupMethod,
+          notes: normOpt(data.notes),
+        },
+      });
+
+      // Huỷ đơn → hoàn kho mọi vật tư đã xuất cho đơn này (chưa hoàn lần nào).
+      // Idempotent: refundedAt đánh dấu OUT đã hoàn → tránh hoàn 2 lần.
+      if (data.status === "CANCELLED") {
+        await refundOrderStockMovements(tx, id, existing.code, actor.id);
+      }
     });
 
     revalidatePath("/admin/orders");
     revalidatePath(`/admin/orders/${id}`);
+    revalidatePath("/admin/supplies");
     revalidatePath("/admin/dashboard");
     redirect(`/admin/orders/${id}`);
   } catch (err) {

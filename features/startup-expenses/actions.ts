@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import { buildStartupExpenseCode } from "@/lib/codegen";
 import type { ActionResult, FieldErrors } from "@/lib/action-result";
 import {
@@ -51,6 +52,7 @@ export async function createStartupExpense(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN");
   const parsed = startupExpenseInputSchema.safeParse(
     parseStartupExpenseFormData(formData)
   );
@@ -90,6 +92,7 @@ export async function updateStartupExpense(
   _prev: ActionResult<{ id: string }> | null,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN");
   const parsed = startupExpenseInputSchema.safeParse(
     parseStartupExpenseFormData(formData)
   );
@@ -122,6 +125,7 @@ export async function updateStartupExpense(
 }
 
 export async function deleteStartupExpense(id: string): Promise<void> {
+  await requireRole("ADMIN");
   await prisma.startupExpense.update({
     where: { id },
     data: { deletedAt: new Date() },
