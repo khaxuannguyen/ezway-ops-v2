@@ -13,7 +13,6 @@ import {
   PickupStatus,
   PickupPhotoType,
   ShippingTransportType,
-  PaymentStatus,
   OrderStatus,
 } from "../app/generated/prisma/client";
 
@@ -421,9 +420,8 @@ async function main() {
           });
         }
 
-        await tx.payment.create({
-          data: { orderId: order.id, amountVnd: totalFeeVnd, status: PaymentStatus.UNPAID },
-        });
+        // Đơn seed mặc định chưa có payment — paymentStatus tự là UNPAID.
+        // Khi cần demo "đã thu", admin ghi nhận tay ở /admin/orders/[id].
 
         // Lịch sử + ảnh cho lệnh lấy hàng đầu tiên.
         if (spec.code === "EZW-2605-0001") {

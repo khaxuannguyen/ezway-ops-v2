@@ -4,7 +4,7 @@ import {
   buildPageMeta,
   type PageMeta,
 } from "@/lib/pagination";
-import type { OrderStatus } from "@/app/generated/prisma/enums";
+import type { OrderStatus, PaymentStatus } from "@/app/generated/prisma/enums";
 
 export interface ListOrdersInput {
   q?: string;
@@ -19,6 +19,8 @@ export interface OrderListRow {
   code: string;
   status: OrderStatus;
   totalFeeVnd: number;
+  paidVnd: number;
+  paymentStatus: PaymentStatus;
   baseCostVnd: number;
   extraCostTotalVnd: number;
   profitVnd: number;
@@ -84,6 +86,8 @@ export async function listOrders(
       code: o.code,
       status: o.status,
       totalFeeVnd: o.totalFeeVnd,
+      paidVnd: o.paidVnd,
+      paymentStatus: o.paymentStatus,
       baseCostVnd: o.baseCostVnd,
       extraCostTotalVnd: o.extraCostTotalVnd,
       profitVnd: o.profitVnd,
@@ -103,7 +107,6 @@ export async function getOrderById(id: string) {
     include: {
       customer: true,
       service: true,
-      payments: { orderBy: { createdAt: "desc" } },
       extraCosts: { orderBy: { appliedAt: "desc" } },
       createdBy: { select: { id: true, name: true, email: true } },
       salesUser: { select: { id: true, name: true } },

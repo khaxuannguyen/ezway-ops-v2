@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ShoppingBag, TrendingUp, Users, Wallet } from "lucide-react";
+import { Banknote, ShoppingBag, TrendingUp, Users, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   Card,
@@ -50,12 +50,34 @@ export default async function SalesStatsPage({ searchParams }: PageProps) {
     node?: React.ReactNode;
   }[] = [
     {
-      label: "Tổng doanh thu",
+      label: "Doanh thu báo giá",
       icon: Wallet,
       node: <MoneyDisplay value={data.totalRevenueVnd} emphasis="strong" />,
     },
     {
-      label: "Tổng lợi nhuận",
+      label: "Đã thu",
+      icon: Banknote,
+      node: (
+        <MoneyDisplay
+          value={data.totalCollectedVnd}
+          tone={data.totalCollectedVnd > 0 ? "positive" : "default"}
+          emphasis="strong"
+        />
+      ),
+    },
+    {
+      label: "Công nợ",
+      icon: ShoppingBag,
+      node: (
+        <MoneyDisplay
+          value={data.totalDebtVnd}
+          tone={data.totalDebtVnd > 0 ? "negative" : "positive"}
+          emphasis="strong"
+        />
+      ),
+    },
+    {
+      label: "Lợi nhuận",
       icon: TrendingUp,
       node: (
         <MoneyDisplay
@@ -65,7 +87,7 @@ export default async function SalesStatsPage({ searchParams }: PageProps) {
         />
       ),
     },
-    { label: "Tổng đơn hàng", icon: ShoppingBag, value: data.totalOrders },
+    { label: "Tổng đơn", icon: ShoppingBag, value: data.totalOrders },
     { label: "Sale có đơn", icon: Users, value: data.activeSalesCount },
   ];
 
@@ -77,7 +99,7 @@ export default async function SalesStatsPage({ searchParams }: PageProps) {
         actions={<MonthFilter value={month.key} label={month.label} />}
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
@@ -118,7 +140,9 @@ export default async function SalesStatsPage({ searchParams }: PageProps) {
                 <TableHead className="w-12">{"#"}</TableHead>
                 <TableHead>{"Nhân viên sale"}</TableHead>
                 <TableHead className="text-right">{"Số đơn"}</TableHead>
-                <TableHead className="text-right">{"Doanh thu"}</TableHead>
+                <TableHead className="text-right">{"Doanh thu báo giá"}</TableHead>
+                <TableHead className="text-right">{"Đã thu"}</TableHead>
+                <TableHead className="text-right">{"Công nợ"}</TableHead>
                 <TableHead className="text-right">{"Lợi nhuận"}</TableHead>
                 <TableHead className="text-right">{"Biên LN"}</TableHead>
               </TableRow>
@@ -141,6 +165,18 @@ export default async function SalesStatsPage({ searchParams }: PageProps) {
                   </TableCell>
                   <TableCell className="text-right">
                     <MoneyDisplay value={row.revenueVnd} emphasis="strong" />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <MoneyDisplay
+                      value={row.collectedVnd}
+                      tone={row.collectedVnd > 0 ? "positive" : "default"}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <MoneyDisplay
+                      value={row.debtVnd}
+                      tone={row.debtVnd > 0 ? "negative" : "positive"}
+                    />
                   </TableCell>
                   <TableCell className="text-right">
                     <MoneyDisplay

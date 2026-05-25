@@ -7,6 +7,7 @@ import { LinkButton } from "@/components/ui/link-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { OrderStatusBadge } from "@/components/shared/order-status-badge";
+import { PaymentStatusBadge } from "@/components/shared/payment-status-badge";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -36,6 +37,12 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   if (!customer) notFound();
   // SALE chỉ xem khách của mình.
   if (user.role === "SALE" && customer.salesUserId !== user.id) notFound();
+
+  // Công nợ — tính từ tất cả đơn (đã loại đơn huỷ ở client-side filter dưới đây).
+  const liveOrders = customer.orders.filter((o) => o.status !== "CANCELLED");
+  const totalQuotedVnd = liveOrders.reduce((s, o) => s + o.totalFeeVnd, 0);
+  const totalPaidVnd = liveOrders.reduce((s, o) => s + o.paidVnd, 0);
+  const debtVnd = totalQuotedVnd - totalPaidVnd;
 
   return (
     <div className="space-y-6">
@@ -99,15 +106,36 @@ export default async function CustomerDetailPage({ params }: PageProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle>{"Tổng số đơn hàng"}</CardTitle>
+            <CardTitle>{"Tổng quan"}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-3xl font-semibold tabular-nums text-foreground">
-              {customer._count.orders}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {"Ngày tạo"}:{" "}
-              {formatDateTime(customer.createdAt)}
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{"Tổng đơn"}</span>
+              <span className="font-semibold tabular-nums">
+                {customer._count.orders}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{"Tổng báo giá"}</span>
+              <MoneyDisplay value={totalQuotedVnd} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{"Đã thu"}</span>
+              <MoneyDisplay
+                value={totalPaidVnd}
+                tone={totalPaidVnd > 0 ? "positive" : "default"}
+              />
+            </div>
+            <div className="flex items-center justify-between border-t border-border pt-2">
+              <span className="text-muted-foreground">{"Công nợ"}</span>
+              <MoneyDisplay
+                value={debtVnd}
+                tone={debtVnd > 0 ? "negative" : "positive"}
+                emphasis="strong"
+              />
+            </div>
+            <p className="pt-1 text-xs text-muted-foreground">
+              {"Ngày tạo"}: {formatDateTime(customer.createdAt)}
             </p>
           </CardContent>
         </Card>
@@ -139,8 +167,12 @@ export default async function CustomerDetailPage({ params }: PageProps) {
                   <TableHead>{"Mã đơn"}</TableHead>
                   <TableHead>{"Dịch vụ"}</TableHead>
                   <TableHead>{"Trạng thái"}</TableHead>
+                  <TableHead>{"Thanh toán"}</TableHead>
                   <TableHead className="text-right">
                     {"Tổng cước thu khách"}
+                  </TableHead>
+                  <TableHead className="text-right">
+                    {"Đã thu"}
                   </TableHead>
                   <TableHead>{"Ngày tạo"}</TableHead>
                 </TableRow>
@@ -160,8 +192,17 @@ export default async function CustomerDetailPage({ params }: PageProps) {
                     <TableCell>
                       <OrderStatusBadge status={o.status} />
                     </TableCell>
+                    <TableCell>
+                      <PaymentStatusBadge status={o.paymentStatus} />
+                    </TableCell>
                     <TableCell className="text-right">
                       <MoneyDisplay value={o.totalFeeVnd} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <MoneyDisplay
+                        value={o.paidVnd}
+                        tone={o.paidVnd > 0 ? "positive" : "muted"}
+                      />
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {formatDateTime(o.createdAt)}

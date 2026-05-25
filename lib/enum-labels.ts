@@ -14,6 +14,7 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   AT_WAREHOUSE: "Đã về kho",
   IN_TRANSIT: "Đang vận chuyển",
   DELIVERED: "Đã giao",
+  CLOSED: "Đã đóng",
   CANCELLED: "Đã huỷ",
 };
 
@@ -25,6 +26,7 @@ export const ORDER_STATUS_TONE: Record<OrderStatus, BadgeTone> = {
   AT_WAREHOUSE: "info",
   IN_TRANSIT: "primary",
   DELIVERED: "success",
+  CLOSED: "success",
   CANCELLED: "destructive",
 };
 
@@ -62,6 +64,7 @@ export const ORDER_STATUS_OPTIONS: OrderStatus[] = [
   "AT_WAREHOUSE",
   "IN_TRANSIT",
   "DELIVERED",
+  "CLOSED",
   "CANCELLED",
 ];
 

@@ -7,7 +7,12 @@ export interface SalesBreakdownRow {
   salesUserId: string | null;
   name: string;
   orderCount: number;
+  /** Doanh thu báo giá (Order.totalFeeVnd) — tiền dự kiến, chưa chắc đã thu. */
   revenueVnd: number;
+  /** Đã thu thực tế (Order.paidVnd) — tiền đã vào két. */
+  collectedVnd: number;
+  /** Công nợ = revenueVnd − collectedVnd. Có thể âm nếu khách trả dư. */
+  debtVnd: number;
   profitVnd: number;
 }
 
@@ -15,6 +20,8 @@ export interface SalesBreakdown {
   rows: SalesBreakdownRow[];
   totalOrders: number;
   totalRevenueVnd: number;
+  totalCollectedVnd: number;
+  totalDebtVnd: number;
   totalProfitVnd: number;
   /** Số nhân viên sale có ít nhất 1 đơn trong kỳ. */
   activeSalesCount: number;
@@ -31,7 +38,7 @@ export async function getSalesBreakdown(
   const grouped = await prisma.order.groupBy({
     by: ["salesUserId"],
     where: { ...liveOrder, createdAt: { gte: start, lt: end } },
-    _sum: { totalFeeVnd: true, profitVnd: true },
+    _sum: { totalFeeVnd: true, paidVnd: true, profitVnd: true },
     _count: { _all: true },
   });
 
@@ -47,21 +54,29 @@ export async function getSalesBreakdown(
   const nameById = new Map(users.map((u) => [u.id, u.name]));
 
   const rows: SalesBreakdownRow[] = grouped
-    .map((g) => ({
-      salesUserId: g.salesUserId,
-      name: g.salesUserId
-        ? nameById.get(g.salesUserId) ?? "(không rõ)"
-        : "Chưa gán",
-      orderCount: g._count._all,
-      revenueVnd: g._sum.totalFeeVnd ?? 0,
-      profitVnd: g._sum.profitVnd ?? 0,
-    }))
+    .map((g) => {
+      const revenueVnd = g._sum.totalFeeVnd ?? 0;
+      const collectedVnd = g._sum.paidVnd ?? 0;
+      return {
+        salesUserId: g.salesUserId,
+        name: g.salesUserId
+          ? nameById.get(g.salesUserId) ?? "(không rõ)"
+          : "Chưa gán",
+        orderCount: g._count._all,
+        revenueVnd,
+        collectedVnd,
+        debtVnd: revenueVnd - collectedVnd,
+        profitVnd: g._sum.profitVnd ?? 0,
+      };
+    })
     .sort((a, b) => b.revenueVnd - a.revenueVnd);
 
   return {
     rows,
     totalOrders: rows.reduce((s, r) => s + r.orderCount, 0),
     totalRevenueVnd: rows.reduce((s, r) => s + r.revenueVnd, 0),
+    totalCollectedVnd: rows.reduce((s, r) => s + r.collectedVnd, 0),
+    totalDebtVnd: rows.reduce((s, r) => s + r.debtVnd, 0),
     totalProfitVnd: rows.reduce((s, r) => s + r.profitVnd, 0),
     activeSalesCount: rows.filter((r) => r.salesUserId !== null).length,
   };
@@ -121,13 +136,15 @@ export async function getRevenueLeaderboard(
 export interface SalesPersonSummary {
   monthOrderCount: number;
   monthRevenueVnd: number;
+  monthCollectedVnd: number;
   monthProfitVnd: number;
   allTimeOrderCount: number;
   allTimeRevenueVnd: number;
+  allTimeCollectedVnd: number;
   allTimeProfitVnd: number;
 }
 
-/** Tổng hợp doanh thu/lợi nhuận của 1 nhân viên sale (kỳ + luỹ kế). */
+/** Tổng hợp doanh thu/đã thu/lợi nhuận của 1 nhân viên sale (kỳ + luỹ kế). */
 export async function getSalesPersonSummary(
   userId: string,
   start: Date,
@@ -136,12 +153,12 @@ export async function getSalesPersonSummary(
   const [month, all] = await Promise.all([
     prisma.order.aggregate({
       where: { ...liveOrder, salesUserId: userId, createdAt: { gte: start, lt: end } },
-      _sum: { totalFeeVnd: true, profitVnd: true },
+      _sum: { totalFeeVnd: true, paidVnd: true, profitVnd: true },
       _count: { _all: true },
     }),
     prisma.order.aggregate({
       where: { ...liveOrder, salesUserId: userId },
-      _sum: { totalFeeVnd: true, profitVnd: true },
+      _sum: { totalFeeVnd: true, paidVnd: true, profitVnd: true },
       _count: { _all: true },
     }),
   ]);
@@ -149,9 +166,11 @@ export async function getSalesPersonSummary(
   return {
     monthOrderCount: month._count._all,
     monthRevenueVnd: month._sum.totalFeeVnd ?? 0,
+    monthCollectedVnd: month._sum.paidVnd ?? 0,
     monthProfitVnd: month._sum.profitVnd ?? 0,
     allTimeOrderCount: all._count._all,
     allTimeRevenueVnd: all._sum.totalFeeVnd ?? 0,
+    allTimeCollectedVnd: all._sum.paidVnd ?? 0,
     allTimeProfitVnd: all._sum.profitVnd ?? 0,
   };
 }

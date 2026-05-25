@@ -6,6 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/shared/data-table";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { OrderStatusBadge } from "@/components/shared/order-status-badge";
+import { PaymentStatusBadge } from "@/components/shared/payment-status-badge";
 import type { OrderListRow } from "@/features/orders/queries";
 import { formatDate } from "@/lib/format";
 
@@ -62,6 +63,21 @@ export function OrdersTable({ rows }: { rows: OrderListRow[] }) {
         header: "Tổng cước thu khách",
         cell: ({ row }) => (
           <MoneyDisplay value={row.original.totalFeeVnd} emphasis="strong" />
+        ),
+      },
+      {
+        accessorKey: "paymentStatus",
+        header: "Thanh toán",
+        cell: ({ row }) => (
+          <div className="flex flex-col gap-1">
+            <PaymentStatusBadge status={row.original.paymentStatus} />
+            {row.original.paidVnd !== row.original.totalFeeVnd ? (
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {"Đã thu "}
+                <MoneyDisplay value={row.original.paidVnd} tone="muted" />
+              </span>
+            ) : null}
+          </div>
         ),
       },
       {

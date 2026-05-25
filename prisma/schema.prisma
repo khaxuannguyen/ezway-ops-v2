@@ -31,6 +31,7 @@ enum OrderStatus {
   AT_WAREHOUSE
   IN_TRANSIT
   DELIVERED
+  CLOSED
   CANCELLED
 }
 
@@ -39,6 +40,13 @@ enum PaymentStatus {
   PARTIAL
   PAID
   REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  COD
+  OTHER
 }
 
 enum ShippingTransportType {
@@ -151,6 +159,7 @@ model User {
   pickupStatusLogs PickupStatusLog[]
   pickupPhotos     PickupPhoto[]
   stockMovements   StockMovement[]   @relation("StockMovementCreatedBy")
+  paymentsRecorded Payment[]         @relation("PaymentRecordedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -287,6 +296,9 @@ model Order {
   extraCostTotalVnd Int @default(0)
   totalFeeVnd       Int @default(0)
   profitVnd         Int @default(0)
+
+  paidVnd       Int           @default(0)
+  paymentStatus PaymentStatus @default(UNPAID)
 
   pickupMethod          PickupMethod   @default(NONE)
   thirdPartyProvider    String?
@@ -441,16 +453,19 @@ model Payment {
   orderId   String
   order     Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   amountVnd Int
-  status    PaymentStatus @default(UNPAID)
-  method    String?
+  method    PaymentMethod @default(CASH)
   reference String?
-  paidAt    DateTime?
+  paidAt    DateTime
   notes     String?
+
+  recordedById String
+  recordedBy   User   @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([orderId, status])
+  @@index([orderId, paidAt])
+  @@index([recordedById, paidAt])
   @@map("payments")
 }
 

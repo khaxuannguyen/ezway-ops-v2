@@ -17,6 +17,7 @@ import { OrderStatusBadge } from "@/components/shared/order-status-badge";
 import { prisma } from "@/lib/prisma";
 import { countOrdersForDate } from "@/features/orders/queries";
 import { countProcessingPackages } from "@/features/pickups/queries";
+import { getOpenDebtTotal } from "@/features/payments/queries";
 import { formatDateTime } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -33,7 +34,8 @@ async function loadStats() {
     processingPackages,
     openPickups,
     activeCustomers,
-    monthRevenueAgg,
+    monthAgg,
+    openDebt,
     recentOrders,
   ] = await Promise.all([
     countOrdersForDate(today),
@@ -47,13 +49,14 @@ async function loadStats() {
     }),
     prisma.customer.count({ where: { deletedAt: null } }),
     prisma.order.aggregate({
-      _sum: { totalFeeVnd: true },
+      _sum: { totalFeeVnd: true, paidVnd: true },
       where: {
         deletedAt: null,
         status: { not: "CANCELLED" },
         createdAt: { gte: monthStart, lt: monthEnd },
       },
     }),
+    getOpenDebtTotal(),
     prisma.order.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: "desc" },
@@ -74,7 +77,10 @@ async function loadStats() {
     processingPackages,
     openPickups,
     activeCustomers,
-    monthRevenue: monthRevenueAgg._sum.totalFeeVnd ?? 0,
+    monthRevenue: monthAgg._sum.totalFeeVnd ?? 0,
+    monthCollected: monthAgg._sum.paidVnd ?? 0,
+    openDebtVnd: openDebt.debtVnd,
+    openDebtOrderCount: openDebt.openOrderCount,
     recentOrders,
   };
 }
@@ -157,11 +163,38 @@ export default async function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{"Tổng doanh thu tháng này"}</p>
-              <p className="text-3xl font-semibold tabular-nums">
-                <MoneyDisplay value={stats.monthRevenue} emphasis="strong" />
-              </p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{"Báo giá tháng này"}</p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  <MoneyDisplay value={stats.monthRevenue} emphasis="strong" />
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{"Đã thu tháng này"}</p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  <MoneyDisplay
+                    value={stats.monthCollected}
+                    tone={stats.monthCollected > 0 ? "positive" : "default"}
+                    emphasis="strong"
+                  />
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  {"Công nợ hiện tại"}
+                  {stats.openDebtOrderCount > 0
+                    ? ` (${stats.openDebtOrderCount.toLocaleString("vi-VN")} đơn)`
+                    : ""}
+                </p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  <MoneyDisplay
+                    value={stats.openDebtVnd}
+                    tone={stats.openDebtVnd > 0 ? "negative" : "positive"}
+                    emphasis="strong"
+                  />
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

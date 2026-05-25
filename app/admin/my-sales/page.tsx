@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ShoppingBag, TrendingUp, Trophy, Wallet } from "lucide-react";
+import { Banknote, ShoppingBag, TrendingUp, Trophy, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   Card,
@@ -47,14 +47,37 @@ export default async function MySalesPage({ searchParams }: PageProps) {
 
   const myRank = leaderboard.find((e) => e.userId === user.id);
 
+  const monthDebt = summary.monthRevenueVnd - summary.monthCollectedVnd;
   const cards = [
     {
-      label: "Doanh thu của tôi",
+      label: "Báo giá",
       icon: Wallet,
       node: <MoneyDisplay value={summary.monthRevenueVnd} emphasis="strong" />,
     },
     {
-      label: "Lợi nhuận của tôi",
+      label: "Đã thu",
+      icon: Banknote,
+      node: (
+        <MoneyDisplay
+          value={summary.monthCollectedVnd}
+          tone={summary.monthCollectedVnd > 0 ? "positive" : "default"}
+          emphasis="strong"
+        />
+      ),
+    },
+    {
+      label: "Công nợ",
+      icon: ShoppingBag,
+      node: (
+        <MoneyDisplay
+          value={monthDebt}
+          tone={monthDebt > 0 ? "negative" : "positive"}
+          emphasis="strong"
+        />
+      ),
+    },
+    {
+      label: "Lợi nhuận",
       icon: TrendingUp,
       node: (
         <MoneyDisplay
@@ -65,12 +88,12 @@ export default async function MySalesPage({ searchParams }: PageProps) {
       ),
     },
     {
-      label: "Số đơn của tôi",
+      label: "Số đơn",
       icon: ShoppingBag,
       node: summary.monthOrderCount.toLocaleString("vi-VN"),
     },
     {
-      label: "Thứ hạng doanh thu",
+      label: "Thứ hạng",
       icon: Trophy,
       node: myRank ? "#" + myRank.rank + " / " + leaderboard.length : "—",
     },
@@ -84,7 +107,7 @@ export default async function MySalesPage({ searchParams }: PageProps) {
         actions={<MonthFilter value={month.key} label={month.label} />}
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
@@ -109,7 +132,7 @@ export default async function MySalesPage({ searchParams }: PageProps) {
         <CardHeader className="border-b-0 pb-2">
           <CardDescription>{"Luỹ kế từ trước đến nay"}</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 pt-0 sm:grid-cols-3 text-sm">
+        <CardContent className="grid gap-4 pt-0 sm:grid-cols-4 text-sm">
           <div>
             <p className="text-xs text-muted-foreground">{"Tổng đơn"}</p>
             <p className="mt-1 text-lg font-semibold tabular-nums">
@@ -117,9 +140,15 @@ export default async function MySalesPage({ searchParams }: PageProps) {
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">{"Tổng doanh thu"}</p>
+            <p className="text-xs text-muted-foreground">{"Tổng báo giá"}</p>
             <p className="mt-1 text-lg font-semibold tabular-nums">
               {formatCurrencyVND(summary.allTimeRevenueVnd)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">{"Đã thu"}</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums text-success">
+              {formatCurrencyVND(summary.allTimeCollectedVnd)}
             </p>
           </div>
           <div>

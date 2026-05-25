@@ -121,6 +121,8 @@ export async function getCustomerWithOrders(id: string) {
           code: true,
           status: true,
           totalFeeVnd: true,
+          paidVnd: true,
+          paymentStatus: true,
           createdAt: true,
           service: { select: { code: true, name: true } },
         },

@@ -25,8 +25,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getOrderById } from "@/features/orders/queries";
+import { listPaymentsByOrder } from "@/features/payments/queries";
+import { createPayment } from "@/features/payments/actions";
+import { PaymentForm } from "@/features/payments/components/payment-form";
+import { PaymentsTable } from "@/features/payments/components/payments-table";
 import { requireUser } from "@/lib/auth";
-import { formatDate, formatDateTime, formatWeight } from "@/lib/format";
+import { formatDateTime, formatWeight } from "@/lib/format";
 import {
   PICKUP_METHOD_LABEL,
   PICKUP_STATUS_LABEL,
@@ -59,6 +63,11 @@ export default async function OrderDetailPage({ params }: PageProps) {
       chargeableWeightKg: Number(p.chargeableWeightKg),
     }))
   );
+
+  const payments = await listPaymentsByOrder(order.id);
+  const remainingVnd = order.totalFeeVnd - order.paidVnd;
+  const canManagePayments = user.role === "ADMIN" || user.role === "STAFF";
+  const createPaymentAction = createPayment.bind(null, order.id);
 
   return (
     <div className="space-y-6">
@@ -304,86 +313,111 @@ export default async function OrderDetailPage({ params }: PageProps) {
           )}
         </CardContent>
       </Card>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{"Thanh toán"}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {order.payments.length === 0 ? (
-              <div className="p-6">
-                <EmptyState title={"Đơn hàng chưa có thanh toán."} />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>{"Trạng thái"}</TableHead>
-                    <TableHead className="text-right">{"Tổng cước thu khách"}</TableHead>
-                    <TableHead>{"Ngày tạo"}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {order.payments.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell>
-                        <PaymentStatusBadge status={p.status} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <MoneyDisplay value={p.amountVnd} />
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatDate(p.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>{"Thanh toán"}</CardTitle>
+          <PaymentStatusBadge status={order.paymentStatus} />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <PaymentStat label={"Tổng cước"} value={order.totalFeeVnd} />
+            <PaymentStat
+              label={"Đã thu"}
+              value={order.paidVnd}
+              tone={order.paidVnd > 0 ? "positive" : "default"}
+            />
+            <PaymentStat
+              label={remainingVnd < 0 ? "Hoàn dư" : "Còn lại"}
+              value={Math.abs(remainingVnd)}
+              tone={remainingVnd > 0 ? "negative" : "positive"}
+              emphasis
+            />
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{"Phụ phí"}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {order.extraCosts.length === 0 ? (
-              <div className="p-6">
-                <EmptyState title={"Đơn hàng chưa có phụ phí."} />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>{"Tên khách hàng"}</TableHead>
-                    <TableHead className="text-right">{"Tổng cước thu khách"}</TableHead>
+          <div className="rounded-md border border-border">
+            <PaymentsTable rows={payments} canManage={canManagePayments} />
+          </div>
+
+          {canManagePayments ? (
+            <div className="rounded-md border border-dashed border-border p-4">
+              <p className="mb-3 text-sm font-medium">{"Ghi nhận thanh toán mới"}</p>
+              <PaymentForm
+                action={createPaymentAction}
+                submitLabel={"Ghi nhận"}
+                remainingVnd={remainingVnd > 0 ? remainingVnd : undefined}
+              />
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{"Phụ phí"}</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {order.extraCosts.length === 0 ? (
+            <div className="p-6">
+              <EmptyState title={"Đơn hàng chưa có phụ phí."} />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>{"Khoản"}</TableHead>
+                  <TableHead className="text-right">{"Số tiền"}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {order.extraCosts.map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{e.nameSnapshot}</span>
+                        {e.note ? (
+                          <span className="text-xs text-muted-foreground">
+                            {e.note}
+                          </span>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <MoneyDisplay value={e.amountVnd} />
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {order.extraCosts.map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{e.nameSnapshot}</span>
-                          {e.note ? (
-                            <span className="text-xs text-muted-foreground">
-                              {e.note}
-                            </span>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <MoneyDisplay value={e.amountVnd} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function PaymentStat({
+  label,
+  value,
+  tone,
+  emphasis,
+}: {
+  label: string;
+  value: number;
+  tone?: "default" | "positive" | "negative";
+  emphasis?: boolean;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 text-lg">
+        <MoneyDisplay
+          value={value}
+          tone={tone ?? "default"}
+          emphasis={emphasis ? "strong" : "normal"}
+        />
+      </p>
     </div>
   );
 }
