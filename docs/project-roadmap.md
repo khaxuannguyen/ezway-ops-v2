@@ -1,10 +1,10 @@
 # EZWAY Ops v2 — Project Roadmap
 
 > **NGUỒN SỰ THẬT DUY NHẤT về tiến độ.** Mỗi phiên làm việc: đọc file này trước.
-> Cập nhật cuối: 2026-05-24 (Dọn nợ kỹ thuật: URL role harden 6 module + cancel
-> order auto hoàn kho + sync snapshot cước khi sửa pickup đã gắn đơn. Pickup
-> status history vừa làm; Payment Phase 1 đã có; Sepay Phase 2 đợi TK bank;
-> Accounting + Tracking đã có plan, chưa code).
+> Cập nhật cuối: 2026-05-26 (Forwarder Processing Phase A: queue xử lý carrier +
+> Copy Helper click-to-paste, cắt 50-70% time admin copy đơn EZWAY → Kango).
+> Trước đó: dọn nợ kỹ thuật, pickup status history, Payment Phase 1, Excel
+> template payroll. Sepay Phase 2 đợi TK bank; Tracking + Accounting đã có plan.
 > (Các file `plans/*.md` đã LỖI THỜI — bỏ qua, không phản ánh thực tế.)
 
 ## Khởi động mỗi ngày
@@ -27,6 +27,7 @@
 | Bảng giá chi phí | `/admin/cost-rates` | Scale cân cố định, import CSV/paste, sửa-tất-cả |
 | Tài xế | `/admin/drivers` | Tạo User role DRIVER kèm theo |
 | Lệnh lấy hàng | `/admin/pickups` | Tạo trước (mã `PK-...`), nhập kiện hàng; gán tài xế + đổi trạng thái; **log đầy đủ lịch sử trạng thái** (PickupStatusLog) + timeline UI + ghi chú khi đổi |
+| Đẩy carrier (Forwarder Processing Phase A) | `/admin/processing` + `/admin/orders/[id]/forward` | Queue đơn pending; Copy Helper modal với click-to-copy từng cụm field (Sender / Receiver / Order info / Packages / Invoice) — paste sang portal Kango/KSN/Go; admin nhập tracking carrier trả + đánh dấu "đã đẩy" |
 | Kho vật tư | `/admin/supplies` | Nhập/Xuất/Kiểm kê + lịch sử |
 | Chi phí thành lập | `/admin/startup-expenses` | Tổng hợp + tự gợi ý nhóm theo từ khóa |
 | Tài khoản | `/admin/users` | CRUD tài khoản, gán role, đặt/reset mật khẩu (chỉ ADMIN) |
@@ -79,7 +80,21 @@ CASH | BANK_TRANSFER | COD | OTHER. Hoàn tiền = `amountVnd` âm. Khi
 vs **Công nợ**. Dashboard widget công nợ hiện tại. Customer detail có card công nợ.
 Plan chi tiết: `docs/payment-ar-phase1-plan.md`.
 
-**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`, `add_sale_role_and_password`, `add_order_sales_user`, `add_google_auth_employee_profile`, `pickup_first`, `pickup_created_by`, `customer_sales_owner`, `add_payment_ar`, `stock_refund_marker`
+**Forwarder Processing Phase A:** EZWAY là layer giữa SALE và chuyên tuyến
+(Kango/KSN/Go). Workflow: SALE tạo đơn EZWAY → ADMIN/STAFF mở Copy Helper
+(`/admin/orders/[id]/forward`) → click copy từng field → paste sang portal carrier
+→ paste tracking carrier trả về EZWAY → đánh dấu "đã đẩy". Pain cũ: 5-10 phút
+copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
+
+- `Recipient` tách khỏi `Customer` — 1 sender VN gửi N người nhận quốc tế.
+- `InvoiceItem` basic (description / qty / unit / unitPriceUsd / totalValueUsd) —
+  KHÔNG HS code, KHÔNG restricted items (carrier upstream lo).
+- `Order.carrierForwardedAt/By/Code/TrackingNumber/...` + `customsExportType` +
+  `serviceTier` + `requiresSignature` + `branchCode`.
+- ADMIN có nút "Bỏ đánh dấu" để revert khi cần (race condition guard).
+- Phase B (defer): browser automation, multi-carrier custom layouts.
+
+**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`, `add_sale_role_and_password`, `add_order_sales_user`, `add_google_auth_employee_profile`, `pickup_first`, `pickup_created_by`, `customer_sales_owner`, `add_payment_ar`, `stock_refund_marker`, `add_forwarder_processing`
 
 **Phân quyền URL (cứng theo role, không chỉ ẩn menu):**
 - ADMIN-only: `/admin/sales`, `/admin/users`, `/admin/services`, `/admin/cost-items`,

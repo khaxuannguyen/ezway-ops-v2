@@ -22,10 +22,13 @@ import {
 import { formatCurrencyVND } from "@/lib/format";
 import type {
   CostCategory,
+  CustomsExportType,
   OrderStatus,
   PickupMethod,
   ShippingTransportType,
 } from "@/app/generated/prisma/enums";
+import { CarrierForwardSection } from "./carrier-forward-section";
+import type { RecipientLite } from "@/features/recipients/queries";
 
 export interface CustomerOption {
   id: string;
@@ -70,6 +73,10 @@ export interface OrderCreateFormDefaults {
   status?: OrderStatus;
   pickupMethod?: PickupMethod;
   notes?: string | null;
+  customsExportType?: CustomsExportType;
+  serviceTier?: string | null;
+  requiresSignature?: boolean;
+  branchCode?: string | null;
 }
 
 export interface OrderCreateFormProps {
@@ -79,6 +86,7 @@ export interface OrderCreateFormProps {
   costItems: CostItemOption[];
   supplies: SupplyOption[];
   salesUsers: SalesUserOption[];
+  recipientOptions: RecipientLite[];
   /** Khi người tạo là SALE — khoá ô chọn về chính họ. */
   lockedSalesUser?: { id: string; name: string } | null;
   action: (
@@ -138,6 +146,7 @@ export function OrderCreateForm({
   costItems,
   supplies,
   salesUsers,
+  recipientOptions,
   lockedSalesUser,
   action,
   submitLabel,
@@ -488,6 +497,24 @@ export function OrderCreateForm({
           </Field>
         </div>
       </FormSection>
+
+      <CarrierForwardSection
+        recipientOptions={recipientOptions}
+        defaults={{
+          customsExportType: defaults?.customsExportType,
+          serviceTier: defaults?.serviceTier,
+          requiresSignature: defaults?.requiresSignature,
+          branchCode: defaults?.branchCode,
+        }}
+        errors={{
+          "recipient.contactName": err("recipient.contactName"),
+          "recipient.phone": err("recipient.phone"),
+          "recipient.country": err("recipient.country"),
+          "recipient.city": err("recipient.city"),
+          "recipient.postalCode": err("recipient.postalCode"),
+          "recipient.addressLine1": err("recipient.addressLine1"),
+        }}
+      />
 
       <div className="flex items-center justify-end gap-2 pt-6">
         <Button type="button" variant="outline" onClick={() => router.back()} disabled={pending}>

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { buildOrderCode } from "@/lib/codegen";
-import { getCurrentUser, type CurrentUser } from "@/lib/auth";
+import { getCurrentUser, requireRole, type CurrentUser } from "@/lib/auth";
 import {
   calculateOrderPackageTotals,
   computePackageWeights,
@@ -19,6 +19,8 @@ import {
   orderInputSchema,
   parseOrderCreateFormData,
   parseOrderFormData,
+  type InvoiceItemRowInput,
+  type RecipientBlockInput,
 } from "./schemas";
 
 function normOpt(v: string | undefined): string | null {
@@ -96,6 +98,56 @@ async function refundOrderStockMovements(
       data: { refundedAt: new Date() },
     });
   }
+}
+
+/** Tính tổng giá trị USD của các invoice items. */
+function sumInvoiceItemsUsd(items: InvoiceItemRowInput[]): number {
+  return items.reduce(
+    (sum, it) => sum + Number((it.quantity * it.unitPriceUsd).toFixed(2)),
+    0
+  );
+}
+
+/**
+ * Resolve người nhận cho đơn:
+ *  - Nếu form có recipientId hợp lệ → tái dùng
+ *  - Ngược lại tạo mới (nếu có đủ field cốt lõi) + optional saveAsReusable
+ *  - Nếu form trống hoàn toàn → trả về null (đơn chưa có recipient — pre-international flow)
+ */
+async function resolveRecipientId(
+  tx: Prisma.TransactionClient,
+  customerId: string,
+  block: RecipientBlockInput
+): Promise<string | null> {
+  if (block.recipientId && block.recipientId.trim() !== "") {
+    const existing = await tx.recipient.findUnique({
+      where: { id: block.recipientId },
+      select: { id: true },
+    });
+    return existing?.id ?? null;
+  }
+  // Tạo mới — bắt buộc 5 field cốt lõi đã được validate ở schema.
+  if (!block.contactName || !block.phone || !block.country || !block.city) {
+    return null;
+  }
+  const created = await tx.recipient.create({
+    data: {
+      customerId: block.saveAsReusable ? customerId : null,
+      companyName: normOpt(block.companyName ?? undefined),
+      contactName: block.contactName.trim(),
+      phone: block.phone.trim(),
+      email: normOpt(block.email ?? undefined),
+      country: block.country.trim().toUpperCase(),
+      stateProvince: normOpt(block.stateProvince ?? undefined),
+      city: block.city.trim(),
+      postalCode: (block.postalCode ?? "").trim(),
+      addressLine1: (block.addressLine1 ?? "").trim(),
+      addressLine2: normOpt(block.addressLine2 ?? undefined),
+      addressLine3: normOpt(block.addressLine3 ?? undefined),
+    },
+    select: { id: true },
+  });
+  return created.id;
 }
 
 async function nextOrderCode(date: Date): Promise<string> {
@@ -289,7 +341,11 @@ export async function createOrder(
     const createdById = actor.id;
     const salesUserId = await resolveSalesUserId(actor, data.salesUserId);
 
+    const totalDeclaredValueUsd =
+      data.invoiceItems.length > 0 ? sumInvoiceItemsUsd(data.invoiceItems) : null;
+
     const created = await prisma.$transaction(async (tx) => {
+      const recipientId = await resolveRecipientId(tx, customer.id, data.recipient);
       const order = await tx.order.create({
         data: {
           code,
@@ -308,9 +364,29 @@ export async function createOrder(
           createdById,
           salesUserId,
           notes: normOpt(data.notes),
+          recipientId,
+          customsExportType: data.customsExportType,
+          totalDeclaredValueUsd,
+          serviceTier: normOpt(data.serviceTier),
+          requiresSignature: data.requiresSignature,
+          branchCode: normOpt(data.branchCode),
         },
         select: { id: true },
       });
+
+      // Invoice items declared cho carrier upstream (Kango/KSN/Go).
+      if (data.invoiceItems.length > 0) {
+        await tx.invoiceItem.createMany({
+          data: data.invoiceItems.map((it) => ({
+            orderId: order.id,
+            description: it.description.trim(),
+            quantity: it.quantity,
+            unit: it.unit.trim(),
+            unitPriceUsd: it.unitPriceUsd,
+            totalValueUsd: Number((it.quantity * it.unitPriceUsd).toFixed(2)),
+          })),
+        });
+      }
 
       // Gắn lệnh lấy hàng vào đơn.
       await tx.pickupRequest.update({
@@ -468,7 +544,12 @@ export async function updateOrder(
     }
     const salesUserId = await resolveSalesUserId(actor, data.salesUserId);
 
+    const totalDeclaredValueUsd =
+      data.invoiceItems.length > 0 ? sumInvoiceItemsUsd(data.invoiceItems) : null;
+
     await prisma.$transaction(async (tx) => {
+      const recipientId = await resolveRecipientId(tx, data.customerId, data.recipient);
+
       await tx.order.update({
         where: { id },
         data: {
@@ -486,8 +567,29 @@ export async function updateOrder(
           profitVnd,
           pickupMethod: data.pickupMethod,
           notes: normOpt(data.notes),
+          recipientId,
+          customsExportType: data.customsExportType,
+          totalDeclaredValueUsd,
+          serviceTier: normOpt(data.serviceTier),
+          requiresSignature: data.requiresSignature,
+          branchCode: normOpt(data.branchCode),
         },
       });
+
+      // Thay toàn bộ invoice items.
+      await tx.invoiceItem.deleteMany({ where: { orderId: id } });
+      if (data.invoiceItems.length > 0) {
+        await tx.invoiceItem.createMany({
+          data: data.invoiceItems.map((it) => ({
+            orderId: id,
+            description: it.description.trim(),
+            quantity: it.quantity,
+            unit: it.unit.trim(),
+            unitPriceUsd: it.unitPriceUsd,
+            totalValueUsd: Number((it.quantity * it.unitPriceUsd).toFixed(2)),
+          })),
+        });
+      }
 
       // Huỷ đơn → hoàn kho mọi vật tư đã xuất cho đơn này (chưa hoàn lần nào).
       // Idempotent: refundedAt đánh dấu OUT đã hoàn → tránh hoàn 2 lần.
@@ -505,6 +607,85 @@ export async function updateOrder(
     if (isNextRedirect(err)) throw err;
     return { ok: false, formError: "Không thể lưu đơn hàng. Vui lòng thử lại." };
   }
+}
+
+/**
+ * Đánh dấu đơn đã được admin đẩy lên carrier upstream (Kango/KSN/Go).
+ * Lưu carrier code + tracking + ghi chú.
+ */
+export async function markOrderForwarded(
+  orderId: string,
+  _prev: ActionResult<{ id: string }> | null,
+  formData: FormData
+): Promise<ActionResult<{ id: string }>> {
+  const actor = await requireRole("ADMIN", "STAFF");
+
+  const carrierCode = (formData.get("carrierCode") ?? "").toString().trim();
+  const carrierTrackingNumber = (formData.get("carrierTrackingNumber") ?? "").toString().trim();
+  const carrierReferenceCode = (formData.get("carrierReferenceCode") ?? "").toString().trim();
+  const carrierNote = (formData.get("carrierNote") ?? "").toString().trim();
+
+  if (!carrierCode) {
+    return { ok: false, fieldErrors: { carrierCode: ["Vui lòng chọn carrier."] } };
+  }
+  if (!carrierTrackingNumber) {
+    return {
+      ok: false,
+      fieldErrors: { carrierTrackingNumber: ["Vui lòng nhập mã tracking carrier trả."] },
+    };
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, deletedAt: true },
+  });
+  if (!order || order.deletedAt) {
+    return { ok: false, formError: "Không tìm thấy đơn hàng." };
+  }
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      carrierForwardedAt: new Date(),
+      carrierForwardedById: actor.id,
+      carrierCode: carrierCode.toUpperCase(),
+      carrierTrackingNumber,
+      carrierReferenceCode: carrierReferenceCode || null,
+      carrierNote: carrierNote || null,
+    },
+  });
+
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${orderId}`);
+  revalidatePath("/admin/processing");
+  return { ok: true, data: { id: orderId } };
+}
+
+/** Bỏ đánh dấu đã đẩy carrier (ADMIN dùng khi ghi nhầm hoặc cần đẩy lại). */
+export async function unmarkOrderForwarded(
+  orderId: string
+): Promise<ActionResult<{ id: string }>> {
+  await requireRole("ADMIN");
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true },
+  });
+  if (!order) return { ok: false, formError: "Không tìm thấy đơn hàng." };
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      carrierForwardedAt: null,
+      carrierForwardedById: null,
+      carrierCode: null,
+      carrierTrackingNumber: null,
+      carrierReferenceCode: null,
+      carrierNote: null,
+    },
+  });
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${orderId}`);
+  revalidatePath("/admin/processing");
+  return { ok: true, data: { id: orderId } };
 }
 
 export async function recalcOrderTotals(orderId: string): Promise<void> {

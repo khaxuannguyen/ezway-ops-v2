@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, Pencil, Send, Undo2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { LinkButton } from "@/components/ui/link-button";
 import {
@@ -29,6 +29,8 @@ import { listPaymentsByOrder } from "@/features/payments/queries";
 import { createPayment } from "@/features/payments/actions";
 import { PaymentForm } from "@/features/payments/components/payment-form";
 import { PaymentsTable } from "@/features/payments/components/payments-table";
+import { unmarkOrderForwarded } from "@/features/orders/actions";
+import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
 import { formatDateTime, formatWeight } from "@/lib/format";
 import {
@@ -67,7 +69,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
   const payments = await listPaymentsByOrder(order.id);
   const remainingVnd = order.totalFeeVnd - order.paidVnd;
   const canManagePayments = user.role === "ADMIN" || user.role === "STAFF";
+  const canManageForwarding = user.role === "ADMIN" || user.role === "STAFF";
+  const isAdmin = user.role === "ADMIN";
   const createPaymentAction = createPayment.bind(null, order.id);
+  const orderId = order.id;
+  async function unmarkForwardedAction() {
+    "use server";
+    await unmarkOrderForwarded(orderId);
+  }
 
   return (
     <div className="space-y-6">
@@ -85,7 +94,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
               <ArrowLeft className="h-4 w-4" aria-hidden />
               {"Quay lại"}
             </LinkButton>
-            <LinkButton href={`/admin/orders/${order.id}/edit`}>
+            {canManageForwarding && !order.carrierForwardedAt ? (
+              <LinkButton href={`/admin/orders/${order.id}/forward`}>
+                <Send className="h-4 w-4" aria-hidden />
+                {"Đẩy carrier"}
+              </LinkButton>
+            ) : null}
+            <LinkButton href={`/admin/orders/${order.id}/edit`} variant="outline">
               <Pencil className="h-4 w-4" aria-hidden />
               {"Chỉnh sửa"}
             </LinkButton>
@@ -171,6 +186,181 @@ export default async function OrderDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
       </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>{"Người nhận quốc tế"}</CardTitle>
+            {order.recipient ? (
+              <Badge tone="info">{order.recipient.country}</Badge>
+            ) : (
+              <Badge tone="warning">{"Chưa có"}</Badge>
+            )}
+          </CardHeader>
+          <CardContent>
+            {order.recipient ? (
+              <div className="grid gap-2 text-sm sm:grid-cols-2">
+                <Info label={"Người nhận"}>
+                  {order.recipient.contactName}
+                  {order.recipient.companyName ? (
+                    <span className="block text-xs text-muted-foreground">
+                      {order.recipient.companyName}
+                    </span>
+                  ) : null}
+                </Info>
+                <Info label={"Số điện thoại"}>{order.recipient.phone}</Info>
+                <Info label={"Email"}>{order.recipient.email ?? "—"}</Info>
+                <Info label={"Quốc gia"}>{order.recipient.country}</Info>
+                <Info label={"Thành phố"}>
+                  {order.recipient.city +
+                    (order.recipient.stateProvince
+                      ? ", " + order.recipient.stateProvince
+                      : "")}
+                </Info>
+                <Info label={"Postal code"}>{order.recipient.postalCode}</Info>
+                <Info label={"Địa chỉ"} className="sm:col-span-2">
+                  <div className="whitespace-pre-line">
+                    {[
+                      order.recipient.addressLine1,
+                      order.recipient.addressLine2,
+                      order.recipient.addressLine3,
+                    ]
+                      .filter(Boolean)
+                      .join("\n")}
+                  </div>
+                </Info>
+              </div>
+            ) : (
+              <EmptyState
+                title={"Đơn này chưa có người nhận quốc tế."}
+                description={"Vào Chỉnh sửa để bổ sung — bắt buộc trước khi đẩy carrier."}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card
+          className={
+            order.carrierForwardedAt
+              ? "border-success/40 bg-success/5"
+              : "border-warning/40 bg-warning/5"
+          }
+        >
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>{"Đẩy carrier"}</CardTitle>
+            {order.carrierForwardedAt ? (
+              <Badge tone="success">{"Đã đẩy"}</Badge>
+            ) : (
+              <Badge tone="warning">{"Chưa đẩy"}</Badge>
+            )}
+          </CardHeader>
+          <CardContent>
+            {order.carrierForwardedAt ? (
+              <div className="grid gap-2 text-sm sm:grid-cols-2">
+                <Info label={"Carrier"}>
+                  <Badge tone="primary">{order.carrierCode ?? "—"}</Badge>
+                </Info>
+                <Info label={"Tracking number"}>
+                  <span className="font-medium tabular-nums">
+                    {order.carrierTrackingNumber ?? "—"}
+                  </span>
+                </Info>
+                <Info label={"Reference carrier"}>
+                  {order.carrierReferenceCode ?? "—"}
+                </Info>
+                <Info label={"Đẩy lúc"}>
+                  {formatDateTime(order.carrierForwardedAt)}
+                </Info>
+                <Info label={"Đẩy bởi"}>
+                  {order.carrierForwardedBy?.name ?? "—"}
+                </Info>
+                {order.carrierNote ? (
+                  <Info label={"Ghi chú"} className="sm:col-span-2">
+                    {order.carrierNote}
+                  </Info>
+                ) : null}
+                {isAdmin ? (
+                  <form action={unmarkForwardedAction} className="sm:col-span-2">
+                    <Button type="submit" variant="outline" size="sm">
+                      <Undo2 className="h-3.5 w-3.5" aria-hidden />
+                      {"Bỏ đánh dấu (admin only)"}
+                    </Button>
+                  </form>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {
+                    "Đơn chưa được đẩy lên carrier upstream. Mở Copy Helper để khai báo và đánh dấu khi xong."
+                  }
+                </p>
+                {canManageForwarding ? (
+                  <LinkButton href={`/admin/orders/${order.id}/forward`}>
+                    <Send className="h-4 w-4" aria-hidden />
+                    {"Mở Copy Helper → Đẩy"}
+                  </LinkButton>
+                ) : null}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {order.invoiceItems.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {"Khai báo Invoice (" +
+                order.customsExportType +
+                ", $" +
+                (order.totalDeclaredValueUsd
+                  ? Number(order.totalDeclaredValueUsd).toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : "0.00") +
+                ")"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>{"Description"}</TableHead>
+                  <TableHead className="text-right">{"Qty"}</TableHead>
+                  <TableHead>{"Unit"}</TableHead>
+                  <TableHead className="text-right">{"Unit Price USD"}</TableHead>
+                  <TableHead className="text-right">{"Total USD"}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {order.invoiceItems.map((it) => (
+                  <TableRow key={it.id}>
+                    <TableCell className="text-sm">{it.description}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {it.quantity}
+                    </TableCell>
+                    <TableCell className="text-sm">{it.unit}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {"$" +
+                        Number(it.unitPriceUsd).toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                        })}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">
+                      {"$" +
+                        Number(it.totalValueUsd).toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                        })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   PackageOpen,
   ReceiptText,
+  Send,
   TrendingUp,
   Truck,
   UserCog,
@@ -55,6 +56,12 @@ export const ADMIN_NAV: NavSection[] = [
     label: "Vận hành",
     items: [
       { href: "/admin/orders", label: "Đơn hàng", icon: ClipboardList },
+      {
+        href: "/admin/processing",
+        label: "Đẩy carrier",
+        icon: Send,
+        roles: OPS,
+      },
       {
         href: "/admin/pickups",
         label: "Lệnh lấy hàng",

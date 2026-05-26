@@ -17,10 +17,17 @@ import {
   TRANSPORT_TYPE_LABEL,
 } from "@/lib/enum-labels";
 import type {
+  CustomsExportType,
   OrderStatus,
   PickupMethod,
   ShippingTransportType,
 } from "@/app/generated/prisma/enums";
+import {
+  CarrierForwardSection,
+  type InvoiceItemDefault,
+  type RecipientDefault,
+} from "./carrier-forward-section";
+import type { RecipientLite } from "@/features/recipients/queries";
 
 export interface CustomerOption {
   id: string;
@@ -49,6 +56,12 @@ export interface OrderFormDefaults {
   status?: OrderStatus;
   pickupMethod?: PickupMethod;
   notes?: string | null;
+  customsExportType?: CustomsExportType;
+  serviceTier?: string | null;
+  requiresSignature?: boolean;
+  branchCode?: string | null;
+  invoiceItems?: InvoiceItemDefault[];
+  recipient?: RecipientDefault;
 }
 
 export interface OrderFormProps {
@@ -56,6 +69,7 @@ export interface OrderFormProps {
   customers: CustomerOption[];
   services: ServiceOption[];
   salesUsers: SalesUserOption[];
+  recipientOptions: RecipientLite[];
   /** Khi người sửa là SALE — khoá ô chọn về chính họ. */
   lockedSalesUser?: { id: string; name: string } | null;
   action: (
@@ -77,6 +91,7 @@ export function OrderForm({
   customers,
   services,
   salesUsers,
+  recipientOptions,
   lockedSalesUser,
   action,
   submitLabel,
@@ -256,6 +271,26 @@ export function OrderForm({
           </Field>
         </div>
       </FormSection>
+
+      <CarrierForwardSection
+        recipientOptions={recipientOptions}
+        defaults={{
+          customsExportType: defaults?.customsExportType,
+          serviceTier: defaults?.serviceTier,
+          requiresSignature: defaults?.requiresSignature,
+          branchCode: defaults?.branchCode,
+          invoiceItems: defaults?.invoiceItems,
+          recipient: defaults?.recipient,
+        }}
+        errors={{
+          "recipient.contactName": err("recipient.contactName"),
+          "recipient.phone": err("recipient.phone"),
+          "recipient.country": err("recipient.country"),
+          "recipient.city": err("recipient.city"),
+          "recipient.postalCode": err("recipient.postalCode"),
+          "recipient.addressLine1": err("recipient.addressLine1"),
+        }}
+      />
 
       <div className="flex items-center justify-end gap-2 pt-6">
         <Button

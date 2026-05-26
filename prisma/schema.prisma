@@ -135,6 +135,14 @@ enum ExpenseStatus {
   PAID
 }
 
+enum CustomsExportType {
+  GIFT
+  MERCHANDISE
+  DOCUMENTS
+  SAMPLE
+  RETURN
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Models
 // ────────────────────────────────────────────────────────────────────────────
@@ -160,6 +168,7 @@ model User {
   pickupPhotos     PickupPhoto[]
   stockMovements   StockMovement[]   @relation("StockMovementCreatedBy")
   paymentsRecorded Payment[]         @relation("PaymentRecordedBy")
+  ordersForwarded  Order[]           @relation("OrderForwardedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -202,7 +211,8 @@ model Customer {
   salesUserId String?
   salesUser   User?   @relation(fields: [salesUserId], references: [id], onDelete: SetNull)
 
-  orders Order[]
+  orders     Order[]
+  recipients Recipient[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -277,6 +287,53 @@ model CostItem {
   @@map("cost_items")
 }
 
+model Recipient {
+  id          String  @id @default(cuid())
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  companyName  String?
+  contactName  String
+  phone        String
+  email        String?
+
+  /// ISO country code: "US", "DE", "GB", "CA", "AU", ...
+  country      String
+  stateProvince String?
+  city         String
+  postalCode   String
+  addressLine1 String
+  addressLine2 String?
+  addressLine3 String?
+
+  orders Order[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([customerId])
+  @@index([phone])
+  @@map("recipients")
+}
+
+model InvoiceItem {
+  id            String  @id @default(cuid())
+  orderId       String
+  order         Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  description   String
+  quantity      Int     @default(1)
+  unit          String  @default("Pcs")
+  unitPriceUsd  Decimal @db.Decimal(10, 2)
+  totalValueUsd Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("invoice_items")
+}
+
 model Order {
   id     String      @id @default(cuid())
   code   String      @unique
@@ -299,6 +356,29 @@ model Order {
 
   paidVnd       Int           @default(0)
   paymentStatus PaymentStatus @default(UNPAID)
+
+  // Recipient quốc tế (consignee) — tách khỏi Customer (sender VN).
+  recipientId String?
+  recipient   Recipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+
+  // Khai báo invoice cho carrier upstream
+  customsExportType     CustomsExportType @default(GIFT)
+  totalDeclaredValueUsd Decimal?          @db.Decimal(12, 2)
+  invoiceItems          InvoiceItem[]
+
+  // Forwarder processing state — admin đã đẩy đơn lên Kango/KSN/Go chưa
+  carrierForwardedAt    DateTime?
+  carrierForwardedById  String?
+  carrierForwardedBy    User?     @relation("OrderForwardedBy", fields: [carrierForwardedById], references: [id], onDelete: SetNull)
+  carrierCode           String?
+  carrierTrackingNumber String?
+  carrierReferenceCode  String?
+  carrierNote           String?
+
+  // Service tier (Kango: "Chuyên tuyến" / "Express")
+  serviceTier       String?
+  requiresSignature Boolean @default(false)
+  branchCode        String?
 
   pickupMethod          PickupMethod   @default(NONE)
   thirdPartyProvider    String?
@@ -323,6 +403,8 @@ model Order {
   @@index([serviceId, status])
   @@index([status, createdAt])
   @@index([salesUserId, createdAt])
+  @@index([recipientId])
+  @@index([carrierForwardedAt])
   @@map("orders")
 }
 

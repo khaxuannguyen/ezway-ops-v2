@@ -110,6 +110,9 @@ export async function getOrderById(id: string) {
       extraCosts: { orderBy: { appliedAt: "desc" } },
       createdBy: { select: { id: true, name: true, email: true } },
       salesUser: { select: { id: true, name: true } },
+      recipient: true,
+      invoiceItems: { orderBy: { createdAt: "asc" } },
+      carrierForwardedBy: { select: { id: true, name: true } },
       pickupRequest: {
         select: {
           id: true,
@@ -129,6 +132,72 @@ export async function getOrderById(id: string) {
   });
   if (!o || o.deletedAt) return null;
   return o;
+}
+
+export interface ProcessingQueueRow {
+  id: string;
+  code: string;
+  status: OrderStatus;
+  totalFeeVnd: number;
+  totalDeclaredValueUsd: number | null;
+  createdAt: Date;
+  customer: { id: string; code: string; name: string };
+  service: { id: string; code: string; name: string };
+  recipient: {
+    id: string;
+    contactName: string;
+    country: string;
+    city: string;
+  } | null;
+  salesUser: { id: string; name: string } | null;
+  packageCount: number;
+}
+
+/** Queue cho admin/STAFF: đơn chưa được đẩy lên carrier upstream, không phải DRAFT/CANCELLED. */
+export async function listProcessingQueue(): Promise<ProcessingQueueRow[]> {
+  const rows = await prisma.order.findMany({
+    where: {
+      deletedAt: null,
+      carrierForwardedAt: null,
+      status: { notIn: ["DRAFT", "CANCELLED"] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+    include: {
+      customer: { select: { id: true, code: true, name: true } },
+      service: { select: { id: true, code: true, name: true } },
+      recipient: {
+        select: { id: true, contactName: true, country: true, city: true },
+      },
+      salesUser: { select: { id: true, name: true } },
+      pickupRequest: { select: { _count: { select: { packages: true } } } },
+    },
+  });
+  return rows.map((o) => ({
+    id: o.id,
+    code: o.code,
+    status: o.status,
+    totalFeeVnd: o.totalFeeVnd,
+    totalDeclaredValueUsd: o.totalDeclaredValueUsd
+      ? Number(o.totalDeclaredValueUsd)
+      : null,
+    createdAt: o.createdAt,
+    customer: o.customer,
+    service: o.service,
+    recipient: o.recipient,
+    salesUser: o.salesUser,
+    packageCount: o.pickupRequest?._count.packages ?? 0,
+  }));
+}
+
+export async function countProcessingQueue(): Promise<number> {
+  return prisma.order.count({
+    where: {
+      deletedAt: null,
+      carrierForwardedAt: null,
+      status: { notIn: ["DRAFT", "CANCELLED"] },
+    },
+  });
 }
 
 export async function getServiceRateTiers(serviceId: string) {

@@ -10,6 +10,7 @@ import { listAllCustomersLite } from "@/features/customers/queries";
 import { listActiveCostItemsLite } from "@/features/cost-items/queries";
 import { listActiveSuppliesLite } from "@/features/supplies/queries";
 import { listSalesUsersLite } from "@/features/users/queries";
+import { listRecipientsLite } from "@/features/recipients/queries";
 import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -24,7 +25,7 @@ export default async function NewOrderPage({ searchParams }: PageProps) {
   const user = await requireUser();
   const isSale = user.role === "SALE";
   const sp = await searchParams;
-  const [customers, services, costItems, supplies, salesUsers] =
+  const [customers, services, costItems, supplies, salesUsers, recipientOptions] =
     await Promise.all([
       // SALE chỉ thấy khách của mình trong ô chọn khách hàng.
       listAllCustomersLite(isSale ? user.id : undefined),
@@ -32,6 +33,7 @@ export default async function NewOrderPage({ searchParams }: PageProps) {
       listActiveCostItemsLite(),
       listActiveSuppliesLite(),
       listSalesUsersLite(),
+      listRecipientsLite(),
     ]);
 
   const lockedSalesUser =
@@ -57,6 +59,7 @@ export default async function NewOrderPage({ searchParams }: PageProps) {
             costItems={costItems}
             supplies={supplies}
             salesUsers={salesUsers}
+            recipientOptions={recipientOptions}
             lockedSalesUser={lockedSalesUser}
             defaults={{ customerId: sp.customerId }}
             action={createOrder}
