@@ -146,8 +146,8 @@ export interface ProcessingQueueRow {
   recipient: {
     id: string;
     contactName: string;
-    country: string;
-    city: string;
+    country: string | null;
+    city: string | null;
   } | null;
   salesUser: { id: string; name: string } | null;
   packageCount: number;

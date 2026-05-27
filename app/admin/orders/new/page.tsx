@@ -9,7 +9,7 @@ import { listAllServicesLite } from "@/features/orders/queries";
 import { listAllCustomersLite } from "@/features/customers/queries";
 import { listActiveCostItemsLite } from "@/features/cost-items/queries";
 import { listActiveSuppliesLite } from "@/features/supplies/queries";
-import { listSalesUsersLite } from "@/features/users/queries";
+import { listSalesUsersLite, listOpsUsersLite } from "@/features/users/queries";
 import { listRecipientsLite } from "@/features/recipients/queries";
 import { requireUser } from "@/lib/auth";
 
@@ -25,16 +25,24 @@ export default async function NewOrderPage({ searchParams }: PageProps) {
   const user = await requireUser();
   const isSale = user.role === "SALE";
   const sp = await searchParams;
-  const [customers, services, costItems, supplies, salesUsers, recipientOptions] =
-    await Promise.all([
-      // SALE chỉ thấy khách của mình trong ô chọn khách hàng.
-      listAllCustomersLite(isSale ? user.id : undefined),
-      listAllServicesLite(),
-      listActiveCostItemsLite(),
-      listActiveSuppliesLite(),
-      listSalesUsersLite(),
-      listRecipientsLite(),
-    ]);
+  const [
+    customers,
+    services,
+    costItems,
+    supplies,
+    salesUsers,
+    recipientOptions,
+    opsUsers,
+  ] = await Promise.all([
+    // SALE chỉ thấy khách của mình trong ô chọn khách hàng.
+    listAllCustomersLite(isSale ? user.id : undefined),
+    listAllServicesLite(),
+    listActiveCostItemsLite(),
+    listActiveSuppliesLite(),
+    listSalesUsersLite(),
+    listRecipientsLite(),
+    listOpsUsersLite(),
+  ]);
 
   const lockedSalesUser =
     user.role === "SALE" ? { id: user.id, name: user.name } : null;
@@ -60,6 +68,7 @@ export default async function NewOrderPage({ searchParams }: PageProps) {
             supplies={supplies}
             salesUsers={salesUsers}
             recipientOptions={recipientOptions}
+            opsUsers={opsUsers}
             lockedSalesUser={lockedSalesUser}
             defaults={{ customerId: sp.customerId }}
             action={createOrder}

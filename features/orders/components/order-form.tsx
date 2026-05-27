@@ -17,14 +17,13 @@ import {
   TRANSPORT_TYPE_LABEL,
 } from "@/lib/enum-labels";
 import type {
-  CustomsExportType,
   OrderStatus,
   PickupMethod,
   ShippingTransportType,
 } from "@/app/generated/prisma/enums";
 import {
   CarrierForwardSection,
-  type InvoiceItemDefault,
+  type OpsUserOption,
   type RecipientDefault,
 } from "./carrier-forward-section";
 import type { RecipientLite } from "@/features/recipients/queries";
@@ -34,6 +33,7 @@ export interface CustomerOption {
   code: string;
   name: string;
   phone: string;
+  address: string;
 }
 export interface ServiceOption {
   id: string;
@@ -56,11 +56,7 @@ export interface OrderFormDefaults {
   status?: OrderStatus;
   pickupMethod?: PickupMethod;
   notes?: string | null;
-  customsExportType?: CustomsExportType;
-  serviceTier?: string | null;
-  requiresSignature?: boolean;
-  branchCode?: string | null;
-  invoiceItems?: InvoiceItemDefault[];
+  assignedToUserId?: string | null;
   recipient?: RecipientDefault;
 }
 
@@ -70,6 +66,7 @@ export interface OrderFormProps {
   services: ServiceOption[];
   salesUsers: SalesUserOption[];
   recipientOptions: RecipientLite[];
+  opsUsers: OpsUserOption[];
   /** Khi người sửa là SALE — khoá ô chọn về chính họ. */
   lockedSalesUser?: { id: string; name: string } | null;
   action: (
@@ -92,6 +89,7 @@ export function OrderForm({
   services,
   salesUsers,
   recipientOptions,
+  opsUsers,
   lockedSalesUser,
   action,
   submitLabel,
@@ -101,6 +99,16 @@ export function OrderForm({
     ActionResult<{ id: string }> | null,
     FormData
   >(action, null);
+
+  const [selectedCustomerId, setSelectedCustomerId] = React.useState<string>(
+    defaults?.customerId ?? ""
+  );
+  const senderSummary = React.useMemo(() => {
+    if (!selectedCustomerId) return null;
+    const c = customers.find((cc) => cc.id === selectedCustomerId);
+    if (!c) return null;
+    return { name: c.name, phone: c.phone, address: c.address };
+  }, [selectedCustomerId, customers]);
 
   const err = (n: string) => (state ? fieldError(state, n) : undefined);
 
@@ -126,7 +134,8 @@ export function OrderForm({
             <Select
               id="customerId"
               name="customerId"
-              defaultValue={defaults?.customerId ?? ""}
+              value={selectedCustomerId}
+              onChange={(e) => setSelectedCustomerId(e.target.value)}
             >
               <option value="">--</option>
               {customers.map((c) => (
@@ -273,23 +282,19 @@ export function OrderForm({
       </FormSection>
 
       <CarrierForwardSection
+        sender={senderSummary}
         recipientOptions={recipientOptions}
+        opsUsers={opsUsers}
         defaults={{
-          customsExportType: defaults?.customsExportType,
-          serviceTier: defaults?.serviceTier,
-          requiresSignature: defaults?.requiresSignature,
-          branchCode: defaults?.branchCode,
-          invoiceItems: defaults?.invoiceItems,
           recipient: defaults?.recipient,
+          assignedToUserId: defaults?.assignedToUserId,
         }}
         errors={{
           "recipient.contactName": err("recipient.contactName"),
           "recipient.phone": err("recipient.phone"),
-          "recipient.country": err("recipient.country"),
-          "recipient.city": err("recipient.city"),
-          "recipient.postalCode": err("recipient.postalCode"),
-          "recipient.addressLine1": err("recipient.addressLine1"),
+          "recipient.address": err("recipient.address"),
         }}
+        showPackages={false}
       />
 
       <div className="flex items-center justify-end gap-2 pt-6">

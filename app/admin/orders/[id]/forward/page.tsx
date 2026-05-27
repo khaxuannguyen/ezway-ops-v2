@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { LinkButton } from "@/components/ui/link-button";
@@ -22,16 +24,16 @@ export default async function ForwardOrderPage({ params }: PageProps) {
   const { id } = await params;
   const order = await getOrderById(id);
   if (!order) notFound();
-  // Đơn đã đẩy → chuyển về detail (ADMIN có nút "Bỏ đánh dấu" ở Order detail).
   if (order.carrierForwardedAt) {
     redirect(`/admin/orders/${order.id}`);
   }
 
+  // Sender = Customer (sender VN). Phase A trước đó hardcode env EZWAY — sai
+  // model. Forwarder ship hộ khách; người gửi trên invoice/portal là khách EZWAY.
   const sender = {
-    companyName: process.env.COMPANY_NAME ?? "CÔNG TY TNHH TM&DV EZWAY",
-    contactName: process.env.COMPANY_CONTACT_NAME ?? "ADMIN EZWAY",
-    phone: process.env.COMPANY_PHONE ?? "0123456789",
-    address: process.env.COMPANY_ADDRESS ?? "TP. Hồ Chí Minh, Việt Nam",
+    name: order.customer.name,
+    phone: order.customer.phone,
+    address: order.customer.address ?? "",
   };
 
   const packages = (order.pickupRequest?.packages ?? []).map((p) => ({
@@ -42,13 +44,14 @@ export default async function ForwardOrderPage({ params }: PageProps) {
     heightCm: p.heightCm,
   }));
 
-  const invoiceItems = order.invoiceItems.map((it) => ({
-    description: it.description,
-    quantity: it.quantity,
-    unit: it.unit,
-    unitPriceUsd: Number(it.unitPriceUsd),
-    totalValueUsd: Number(it.totalValueUsd),
-  }));
+  const recipient = order.recipient
+    ? {
+        contactName: order.recipient.contactName,
+        phone: order.recipient.phone,
+        nationalId: order.recipient.nationalId,
+        address: order.recipient.address,
+      }
+    : null;
 
   const action = markOrderForwarded.bind(null, order.id);
 
@@ -61,10 +64,8 @@ export default async function ForwardOrderPage({ params }: PageProps) {
         }
         actions={
           <div className="flex items-center gap-2">
-            <Badge tone={order.recipient ? "info" : "warning"}>
-              {order.recipient
-                ? "Người nhận: " + order.recipient.country
-                : "Chưa có người nhận"}
+            <Badge tone={recipient ? "info" : "warning"}>
+              {recipient ? "Có người nhận" : "Chưa có người nhận"}
             </Badge>
             <LinkButton href={`/admin/orders/${order.id}`} variant="outline">
               <ArrowLeft className="h-4 w-4" aria-hidden />
@@ -77,7 +78,7 @@ export default async function ForwardOrderPage({ params }: PageProps) {
       <CarrierCopyHelper
         orderCode={order.code}
         sender={sender}
-        recipient={order.recipient}
+        recipient={recipient}
         orderInfo={{
           serviceTier: order.serviceTier,
           requiresSignature: order.requiresSignature,
@@ -85,7 +86,6 @@ export default async function ForwardOrderPage({ params }: PageProps) {
           customsExportType: order.customsExportType,
         }}
         packages={packages}
-        invoiceItems={invoiceItems}
         action={action}
       />
     </div>

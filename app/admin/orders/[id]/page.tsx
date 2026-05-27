@@ -29,7 +29,7 @@ import { listPaymentsByOrder } from "@/features/payments/queries";
 import { createPayment } from "@/features/payments/actions";
 import { PaymentForm } from "@/features/payments/components/payment-form";
 import { PaymentsTable } from "@/features/payments/components/payments-table";
-import { unmarkOrderForwarded } from "@/features/orders/actions";
+import { unmarkOrderForwardedForm } from "@/features/orders/actions";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
 import { formatDateTime, formatWeight } from "@/lib/format";
@@ -72,11 +72,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
   const canManageForwarding = user.role === "ADMIN" || user.role === "STAFF";
   const isAdmin = user.role === "ADMIN";
   const createPaymentAction = createPayment.bind(null, order.id);
-  const orderId = order.id;
-  async function unmarkForwardedAction() {
-    "use server";
-    await unmarkOrderForwarded(orderId);
-  }
+  const unmarkForwardedAction = unmarkOrderForwardedForm.bind(null, order.id);
 
   return (
     <div className="space-y-6">

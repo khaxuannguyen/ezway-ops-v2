@@ -103,6 +103,20 @@ export async function listSalesUsersLite(): Promise<
   });
 }
 
+/**
+ * Danh sách nhân viên OPS (STAFF + DRIVER) đang hoạt động — dùng cho ô chọn
+ * "Người phụ trách" trong form đơn hàng (NV đóng hàng / tài xế hỗ trợ).
+ */
+export async function listOpsUsersLite(): Promise<
+  { id: string; name: string; role: UserRole }[]
+> {
+  return prisma.user.findMany({
+    where: { role: { in: ["STAFF", "DRIVER"] }, isActive: true },
+    select: { id: true, name: true, role: true },
+    orderBy: { name: "asc" },
+  });
+}
+
 /** Lấy 1 tài khoản. Trả null nếu là tài xế (quản lý ở module Tài xế). */
 export async function getUserById(id: string) {
   const u = await prisma.user.findUnique({

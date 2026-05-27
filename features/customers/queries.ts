@@ -91,7 +91,7 @@ export async function listAllCustomersLite(salesUserId?: string) {
       deletedAt: null,
       ...(salesUserId ? { salesUserId } : {}),
     },
-    select: { id: true, code: true, name: true, phone: true },
+    select: { id: true, code: true, name: true, phone: true, address: true },
     orderBy: { code: "asc" },
   });
   return rows;

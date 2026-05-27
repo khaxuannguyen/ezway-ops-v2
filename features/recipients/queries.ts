@@ -5,8 +5,9 @@ export interface RecipientLite {
   contactName: string;
   companyName: string | null;
   phone: string;
-  country: string;
-  city: string;
+  country: string | null;
+  city: string | null;
+  address: string | null;
   customerId: string | null;
 }
 
@@ -26,6 +27,7 @@ export async function listRecipientsLite(input: {
       phone: true,
       country: true,
       city: true,
+      address: true,
       customerId: true,
     },
     orderBy: { updatedAt: "desc" },

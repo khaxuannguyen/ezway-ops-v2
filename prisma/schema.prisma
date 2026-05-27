@@ -169,6 +169,7 @@ model User {
   stockMovements   StockMovement[]   @relation("StockMovementCreatedBy")
   paymentsRecorded Payment[]         @relation("PaymentRecordedBy")
   ordersForwarded  Order[]           @relation("OrderForwardedBy")
+  ordersAssigned   Order[]           @relation("OrderAssignedTo")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -296,13 +297,19 @@ model Recipient {
   contactName  String
   phone        String
   email        String?
+  /// CCCD / National ID (optional, dùng cho khai báo Kango/quốc tế).
+  nationalId   String?
 
-  /// ISO country code: "US", "DE", "GB", "CA", "AU", ...
-  country      String
+  /// Địa chỉ gộp 1 field multi-line — sale điền nhanh; ADMIN có thể tách
+  /// thành structured fields bên dưới khi cần paste sang carrier portal.
+  address      String?
+
+  /// Structured fields (optional) — ADMIN bổ sung sau cho carrier portal.
+  country      String?
   stateProvince String?
-  city         String
-  postalCode   String
-  addressLine1 String
+  city         String?
+  postalCode   String?
+  addressLine1 String?
   addressLine2 String?
   addressLine3 String?
 
@@ -380,6 +387,11 @@ model Order {
   requiresSignature Boolean @default(false)
   branchCode        String?
 
+  // Người phụ trách đóng hàng (OPS: STAFF + DRIVER) — sale gán để công ty tính
+  // hoa hồng cho NV đóng hàng. Nullable: chưa gán cũng tạo đơn được.
+  assignedToUserId String?
+  assignedTo       User?   @relation("OrderAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+
   pickupMethod          PickupMethod   @default(NONE)
   thirdPartyProvider    String?
   thirdPartyProviderUrl String?
@@ -405,6 +417,7 @@ model Order {
   @@index([salesUserId, createdAt])
   @@index([recipientId])
   @@index([carrierForwardedAt])
+  @@index([assignedToUserId])
   @@map("orders")
 }
 

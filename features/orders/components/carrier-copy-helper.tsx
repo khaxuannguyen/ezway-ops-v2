@@ -164,24 +164,18 @@ function CopyableTable({
 
 export interface CarrierCopyHelperProps {
   orderCode: string;
+  /** Sender = Customer EZWAY (người gửi VN). */
   sender: {
-    companyName: string;
-    contactName: string;
+    name: string;
     phone: string;
     address: string;
   };
+  /** Recipient — shape mới đơn giản: contactName + phone + nationalId + address gộp. */
   recipient: {
-    companyName: string | null;
     contactName: string;
     phone: string;
-    email: string | null;
-    country: string;
-    stateProvince: string | null;
-    city: string;
-    postalCode: string;
-    addressLine1: string;
-    addressLine2: string | null;
-    addressLine3: string | null;
+    nationalId: string | null;
+    address: string | null;
   } | null;
   orderInfo: {
     serviceTier: string | null;
@@ -189,19 +183,13 @@ export interface CarrierCopyHelperProps {
     branchCode: string | null;
     customsExportType: string;
   };
+  /** Kiện hàng — mô tả + sizes + cân. */
   packages: {
     description: string | null;
     actualWeightKg: number;
     lengthCm: number;
     widthCm: number;
     heightCm: number;
-  }[];
-  invoiceItems: {
-    description: string;
-    quantity: number;
-    unit: string;
-    unitPriceUsd: number;
-    totalValueUsd: number;
   }[];
   action: (
     prev: ActionResult<{ id: string }> | null,
@@ -215,7 +203,6 @@ export function CarrierCopyHelper({
   recipient,
   orderInfo,
   packages,
-  invoiceItems,
   action,
 }: CarrierCopyHelperProps) {
   const [state, formAction, pending] = useActionState<
@@ -224,6 +211,16 @@ export function CarrierCopyHelper({
   >(action, null);
   const err = (n: string) => (state ? fieldError(state, n) : undefined);
 
+  // Goods Details = Package descriptions, default qty=1 unit=Pcs price=0
+  // (ADMIN tự điền price khi paste sang Kango nếu cần).
+  const goodsRows = packages.map((p) => [
+    p.description ?? "(chưa mô tả)",
+    1,
+    "Pcs",
+    "0.00",
+    "0.00",
+  ]);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -231,8 +228,7 @@ export function CarrierCopyHelper({
           <CardTitle>{"1. Người gửi (Sender)"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <CopyableField label={"Công ty"} value={sender.companyName} />
-          <CopyableField label={"Người liên hệ"} value={sender.contactName} />
+          <CopyableField label={"Họ tên"} value={sender.name} />
           <CopyableField label={"Số điện thoại"} value={sender.phone} />
           <CopyableField label={"Địa chỉ"} value={sender.address} multiline />
         </CardContent>
@@ -245,33 +241,20 @@ export function CarrierCopyHelper({
         <CardContent className="space-y-2">
           {recipient ? (
             <>
+              <CopyableField label={"Họ tên"} value={recipient.contactName} />
+              <CopyableField label={"Số điện thoại"} value={recipient.phone} />
+              <CopyableField label={"CCCD"} value={recipient.nationalId ?? ""} />
               <CopyableField
-                label={"Công ty"}
-                value={recipient.companyName ?? ""}
-              />
-              <CopyableField label={"Contact Name"} value={recipient.contactName} />
-              <CopyableField label={"Phone"} value={recipient.phone} />
-              <CopyableField label={"Email"} value={recipient.email ?? ""} />
-              <CopyableField label={"Country (ISO)"} value={recipient.country} />
-              <CopyableField
-                label={"State/Province"}
-                value={recipient.stateProvince ?? ""}
-              />
-              <CopyableField label={"City"} value={recipient.city} />
-              <CopyableField label={"Postal Code"} value={recipient.postalCode} />
-              <CopyableField label={"Address 1"} value={recipient.addressLine1} />
-              <CopyableField
-                label={"Address 2"}
-                value={recipient.addressLine2 ?? ""}
-              />
-              <CopyableField
-                label={"Address 3"}
-                value={recipient.addressLine3 ?? ""}
+                label={"Địa chỉ"}
+                value={recipient.address ?? ""}
+                multiline
               />
             </>
           ) : (
             <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-warning">
-              {"Đơn này chưa có người nhận. Vào /admin/orders/<id>/edit để bổ sung."}
+              {
+                "Đơn này chưa có người nhận. Vào trang Chỉnh sửa đơn để bổ sung."
+              }
             </p>
           )}
         </CardContent>
@@ -306,7 +289,13 @@ export function CarrierCopyHelper({
         <CardContent>
           <CopyableTable
             title={"Packages"}
-            columns={["Description", "Weight(Kg)", "Length(Cm)", "Width(Cm)", "Height(Cm)"]}
+            columns={[
+              "Description",
+              "Weight(Kg)",
+              "Length(Cm)",
+              "Width(Cm)",
+              "Height(Cm)",
+            ]}
             rows={packages.map((p) => [
               p.description ?? "",
               p.actualWeightKg.toFixed(2),
@@ -320,19 +309,24 @@ export function CarrierCopyHelper({
 
       <Card>
         <CardHeader>
-          <CardTitle>{"5. Khai báo Invoice"}</CardTitle>
+          <CardTitle>{"5. Goods Details (khai báo invoice)"}</CardTitle>
         </CardHeader>
         <CardContent>
+          <p className="mb-3 text-xs text-muted-foreground">
+            {
+              "Mặc định 1 kiện = 1 row, qty=1 Pcs, price=$0 (Gift). ADMIN có thể điền giá thực vào Kango portal nếu cần khai báo declared value khác."
+            }
+          </p>
           <CopyableTable
             title={"Goods Details"}
-            columns={["Description", "Quantity", "Unit", "Unit Price USD", "Total USD"]}
-            rows={invoiceItems.map((it) => [
-              it.description,
-              it.quantity,
-              it.unit,
-              it.unitPriceUsd.toFixed(2),
-              it.totalValueUsd.toFixed(2),
-            ])}
+            columns={[
+              "Description",
+              "Quantity",
+              "Unit",
+              "Unit Price USD",
+              "Total USD",
+            ]}
+            rows={goodsRows}
           />
         </CardContent>
       </Card>

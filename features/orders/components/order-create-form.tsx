@@ -22,12 +22,16 @@ import {
 import { formatCurrencyVND } from "@/lib/format";
 import type {
   CostCategory,
-  CustomsExportType,
   OrderStatus,
   PickupMethod,
   ShippingTransportType,
 } from "@/app/generated/prisma/enums";
-import { CarrierForwardSection } from "./carrier-forward-section";
+import {
+  CarrierForwardSection,
+  type OpsUserOption,
+  type PackageRowDefault,
+  type RecipientDefault,
+} from "./carrier-forward-section";
 import type { RecipientLite } from "@/features/recipients/queries";
 
 export interface CustomerOption {
@@ -35,6 +39,7 @@ export interface CustomerOption {
   code: string;
   name: string;
   phone: string;
+  address: string;
 }
 export interface ServiceOption {
   id: string;
@@ -73,10 +78,9 @@ export interface OrderCreateFormDefaults {
   status?: OrderStatus;
   pickupMethod?: PickupMethod;
   notes?: string | null;
-  customsExportType?: CustomsExportType;
-  serviceTier?: string | null;
-  requiresSignature?: boolean;
-  branchCode?: string | null;
+  assignedToUserId?: string | null;
+  recipient?: RecipientDefault;
+  packages?: PackageRowDefault[];
 }
 
 export interface OrderCreateFormProps {
@@ -87,6 +91,7 @@ export interface OrderCreateFormProps {
   supplies: SupplyOption[];
   salesUsers: SalesUserOption[];
   recipientOptions: RecipientLite[];
+  opsUsers: OpsUserOption[];
   /** Khi người tạo là SALE — khoá ô chọn về chính họ. */
   lockedSalesUser?: { id: string; name: string } | null;
   action: (
@@ -147,6 +152,7 @@ export function OrderCreateForm({
   supplies,
   salesUsers,
   recipientOptions,
+  opsUsers,
   lockedSalesUser,
   action,
   submitLabel,
@@ -161,6 +167,16 @@ export function OrderCreateForm({
     makeEmptyExtra(),
   ]);
   const [supplyRows, setSupplyRows] = React.useState<SupplyRow[]>(() => []);
+  const [selectedCustomerId, setSelectedCustomerId] = React.useState<string>(
+    defaults?.customerId ?? ""
+  );
+
+  const senderSummary = React.useMemo(() => {
+    if (!selectedCustomerId) return null;
+    const c = customers.find((cc) => cc.id === selectedCustomerId);
+    if (!c) return null;
+    return { name: c.name, phone: c.phone, address: c.address };
+  }, [selectedCustomerId, customers]);
 
   const err = (n: string) => (state ? fieldError(state, n) : undefined);
 
@@ -223,7 +239,12 @@ export function OrderCreateForm({
       >
         <div className="grid gap-4 md:grid-cols-2">
           <Field label={"Khách hàng"} htmlFor="customerId" required error={err("customerId")}>
-            <Select id="customerId" name="customerId" defaultValue={defaults?.customerId ?? ""}>
+            <Select
+              id="customerId"
+              name="customerId"
+              value={selectedCustomerId}
+              onChange={(e) => setSelectedCustomerId(e.target.value)}
+            >
               <option value="">--</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -275,29 +296,6 @@ export function OrderCreateForm({
             )}
           </Field>
         </div>
-      </FormSection>
-
-      <FormSection
-        title={"Lệnh lấy hàng"}
-        description={
-          "Nhập mã lệnh lấy hàng (PK-...). Hệ thống lấy kiện hàng từ lệnh đó để " +
-          "tính cân tính cước và cước vận chuyển."
-        }
-      >
-        <Field
-          label={"Mã lệnh lấy hàng"}
-          htmlFor="pickupCode"
-          required
-          error={err("pickupCode")}
-        >
-          <Input
-            id="pickupCode"
-            name="pickupCode"
-            defaultValue={defaults?.pickupCode ?? ""}
-            placeholder="VD: PK-260522-0001"
-            autoComplete="off"
-          />
-        </Field>
       </FormSection>
 
       <FormSection title={"Chi phí phát sinh"} description={"Phí thùng carton, phụ thu hàng khó, và các chi phí khác. Có thể bỏ trống."}>
@@ -499,21 +497,23 @@ export function OrderCreateForm({
       </FormSection>
 
       <CarrierForwardSection
+        sender={senderSummary}
         recipientOptions={recipientOptions}
+        opsUsers={opsUsers}
         defaults={{
-          customsExportType: defaults?.customsExportType,
-          serviceTier: defaults?.serviceTier,
-          requiresSignature: defaults?.requiresSignature,
-          branchCode: defaults?.branchCode,
+          recipient: defaults?.recipient,
+          assignedToUserId: defaults?.assignedToUserId,
+          packages: defaults?.packages,
+          pickupCode: defaults?.pickupCode,
         }}
         errors={{
           "recipient.contactName": err("recipient.contactName"),
           "recipient.phone": err("recipient.phone"),
-          "recipient.country": err("recipient.country"),
-          "recipient.city": err("recipient.city"),
-          "recipient.postalCode": err("recipient.postalCode"),
-          "recipient.addressLine1": err("recipient.addressLine1"),
+          "recipient.address": err("recipient.address"),
+          pickupCode: err("pickupCode"),
+          packages: err("packages"),
         }}
+        showPackages={true}
       />
 
       <div className="flex items-center justify-end gap-2 pt-6">

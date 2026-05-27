@@ -1,81 +1,81 @@
 import { z } from "zod";
 import {
   CostCategory,
-  CustomsExportType,
   OrderStatus,
   PickupMethod,
 } from "@/app/generated/prisma/enums";
 
-/** Recipient — có thể reuse người nhận cũ (recipientId) hoặc tạo mới (nhập từng field). */
 const phoneRegex = /^[0-9+\-\s()]{5,25}$/;
-export const recipientBlockSchema = z.object({
-  recipientId: z.string().trim().optional().or(z.literal("")),
-  saveAsReusable: z.boolean().default(false),
-  companyName: z.string().trim().optional().or(z.literal("")),
-  contactName: z.string().trim().optional().or(z.literal("")),
-  phone: z.string().trim().optional().or(z.literal("")),
-  email: z.string().trim().optional().or(z.literal("")),
-  country: z.string().trim().optional().or(z.literal("")),
-  stateProvince: z.string().trim().optional().or(z.literal("")),
-  city: z.string().trim().optional().or(z.literal("")),
-  postalCode: z.string().trim().optional().or(z.literal("")),
-  addressLine1: z.string().trim().optional().or(z.literal("")),
-  addressLine2: z.string().trim().optional().or(z.literal("")),
-  addressLine3: z.string().trim().optional().or(z.literal("")),
-}).superRefine((data, ctx) => {
-  // Nếu chọn người nhận cũ thì không cần nhập tay.
-  if (data.recipientId && data.recipientId !== "") return;
-  // Tạo mới → bắt buộc 5 field cốt lõi.
-  const required: Array<[keyof typeof data, string]> = [
-    ["contactName", "Vui lòng nhập tên người nhận."],
-    ["phone", "Vui lòng nhập số điện thoại."],
-    ["country", "Vui lòng nhập mã quốc gia (vd US, DE)."],
-    ["city", "Vui lòng nhập thành phố."],
-    ["postalCode", "Vui lòng nhập mã bưu chính."],
-    ["addressLine1", "Vui lòng nhập địa chỉ dòng 1."],
-  ];
-  for (const [field, msg] of required) {
-    const v = (data[field] ?? "").toString().trim();
-    if (v === "") {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: msg, path: [field] });
+
+/**
+ * Recipient block — form sale chỉ thu các field cốt lõi (tên / SĐT / CCCD /
+ * địa chỉ gộp). Country/state/city/postal/addr1-3 vẫn còn trong DB (nullable)
+ * để ADMIN tách sau khi paste sang carrier portal.
+ */
+export const recipientBlockSchema = z
+  .object({
+    recipientId: z.string().trim().optional().or(z.literal("")),
+    saveAsReusable: z.boolean().default(false),
+    contactName: z.string().trim().optional().or(z.literal("")),
+    phone: z.string().trim().optional().or(z.literal("")),
+    nationalId: z.string().trim().optional().or(z.literal("")),
+    address: z.string().trim().optional().or(z.literal("")),
+  })
+  .superRefine((data, ctx) => {
+    // Reuse người nhận cũ → không cần validate.
+    if (data.recipientId && data.recipientId !== "") return;
+    // Tạo mới — bắt buộc 3 field.
+    const required: Array<[keyof typeof data, string]> = [
+      ["contactName", "Vui lòng nhập tên người nhận."],
+      ["phone", "Vui lòng nhập số điện thoại."],
+      ["address", "Vui lòng nhập địa chỉ."],
+    ];
+    for (const [field, msg] of required) {
+      const v = (data[field] ?? "").toString().trim();
+      if (v === "") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: msg, path: [field] });
+      }
     }
-  }
-  // Phone format check khi tạo mới.
-  const phone = (data.phone ?? "").toString().trim();
-  if (phone && !phoneRegex.test(phone)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Số điện thoại không hợp lệ.",
-      path: ["phone"],
-    });
-  }
-});
+    const phone = (data.phone ?? "").toString().trim();
+    if (phone && !phoneRegex.test(phone)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Số điện thoại không hợp lệ.",
+        path: ["phone"],
+      });
+    }
+  });
 
 export type RecipientBlockInput = z.infer<typeof recipientBlockSchema>;
 
-export const invoiceItemRowSchema = z.object({
-  description: z.string().trim().min(1, "Vui lòng nhập mô tả hàng."),
-  quantity: z
-    .coerce.number({ message: "Số lượng không hợp lệ." })
-    .int("Số lượng phải là số nguyên.")
-    .positive("Số lượng phải lớn hơn 0."),
-  unit: z.string().trim().min(1, "Vui lòng chọn đơn vị."),
-  unitPriceUsd: z
-    .coerce.number({ message: "Đơn giá không hợp lệ." })
-    .nonnegative("Đơn giá không hợp lệ."),
+/** 1 kiện hàng nhập trong form sale (khi không có pickup code). */
+export const orderPackageRowSchema = z.object({
+  description: z.string().trim().optional().or(z.literal("")),
+  actualWeightKg: z
+    .coerce.number({ message: "Cân thực phải lớn hơn 0." })
+    .positive("Cân thực phải lớn hơn 0."),
+  lengthCm: z
+    .coerce.number({ message: "Kích thước phải lớn hơn 0." })
+    .int("Kích thước phải lớn hơn 0.")
+    .positive("Kích thước phải lớn hơn 0."),
+  widthCm: z
+    .coerce.number({ message: "Kích thước phải lớn hơn 0." })
+    .int("Kích thước phải lớn hơn 0.")
+    .positive("Kích thước phải lớn hơn 0."),
+  heightCm: z
+    .coerce.number({ message: "Kích thước phải lớn hơn 0." })
+    .int("Kích thước phải lớn hơn 0.")
+    .positive("Kích thước phải lớn hơn 0."),
 });
 
-export type InvoiceItemRowInput = z.infer<typeof invoiceItemRowSchema>;
+export type OrderPackageRowInput = z.infer<typeof orderPackageRowSchema>;
 
-const carrierForwardBlockShape = {
-  customsExportType: z
-    .nativeEnum(CustomsExportType)
-    .default(CustomsExportType.GIFT),
-  serviceTier: z.string().trim().optional().or(z.literal("")),
-  requiresSignature: z.boolean().default(false),
-  branchCode: z.string().trim().optional().or(z.literal("")),
-  invoiceItems: z.array(invoiceItemRowSchema).default([]),
+/** Sale form block — recipient + assignee + bill packages (khi không có pickup code). */
+const saleExtraBlockShape = {
   recipient: recipientBlockSchema,
+  assignedToUserId: z.string().trim().optional().or(z.literal("")),
+  /** Kiện hàng nhập tay trong form Order — chỉ dùng khi không có pickupCode. */
+  packages: z.array(orderPackageRowSchema).default([]),
 };
 
 export const orderInputSchema = z.object({
@@ -89,57 +89,47 @@ export const orderInputSchema = z.object({
   status: z.nativeEnum(OrderStatus).default(OrderStatus.DRAFT),
   pickupMethod: z.nativeEnum(PickupMethod).default(PickupMethod.NONE),
   notes: z.string().trim().optional().or(z.literal("")),
-  ...carrierForwardBlockShape,
+  ...saleExtraBlockShape,
 });
 
 export type OrderInput = z.infer<typeof orderInputSchema>;
 
-/** Đọc các trường carrier/recipient/invoiceItems từ FormData. */
-function parseCarrierForwardBlock(fd: FormData): Record<string, unknown> {
-  const itemIndexes = new Set<number>();
+/** Đọc block extras (recipient + assignedTo + bill packages) từ FormData. */
+function parseSaleExtraBlock(fd: FormData): Record<string, unknown> {
+  // Bill packages repeater (chỉ dùng khi không có pickupCode).
+  const pkgIndexes = new Set<number>();
   for (const key of fd.keys()) {
     const m = key.match(
-      /^invoiceItem\[(\d+)\]\[(description|quantity|unit|unitPriceUsd)\]$/
+      /^orderPkg\[(\d+)\]\[(description|actualWeightKg|lengthCm|widthCm|heightCm)\]$/
     );
-    if (m) itemIndexes.add(Number(m[1]));
+    if (m) pkgIndexes.add(Number(m[1]));
   }
-  const invoiceItems: Record<string, unknown>[] = [];
-  for (const i of Array.from(itemIndexes).sort((a, b) => a - b)) {
-    const description = (fd.get(`invoiceItem[${i}][description]`) ?? "").toString();
-    const unitPriceUsd = (fd.get(`invoiceItem[${i}][unitPriceUsd]`) ?? "").toString();
-    if (description.trim() === "" && unitPriceUsd.trim() === "") continue;
-    invoiceItems.push({
-      description,
-      quantity: (fd.get(`invoiceItem[${i}][quantity]`) ?? "1").toString(),
-      unit: (fd.get(`invoiceItem[${i}][unit]`) ?? "Pcs").toString(),
-      unitPriceUsd,
+  const packages: Record<string, unknown>[] = [];
+  for (const i of Array.from(pkgIndexes).sort((a, b) => a - b)) {
+    const w = (fd.get(`orderPkg[${i}][actualWeightKg]`) ?? "").toString();
+    const l = (fd.get(`orderPkg[${i}][lengthCm]`) ?? "").toString();
+    if (w.trim() === "" && l.trim() === "") continue;
+    packages.push({
+      description: (fd.get(`orderPkg[${i}][description]`) ?? "").toString(),
+      actualWeightKg: w,
+      lengthCm: l,
+      widthCm: (fd.get(`orderPkg[${i}][widthCm]`) ?? "").toString(),
+      heightCm: (fd.get(`orderPkg[${i}][heightCm]`) ?? "").toString(),
     });
   }
 
   return {
-    customsExportType: (fd.get("customsExportType") ?? "GIFT").toString(),
-    serviceTier: (fd.get("serviceTier") ?? "").toString(),
-    requiresSignature:
-      fd.get("requiresSignature") === "on" ||
-      fd.get("requiresSignature") === "true",
-    branchCode: (fd.get("branchCode") ?? "").toString(),
-    invoiceItems,
+    assignedToUserId: (fd.get("assignedToUserId") ?? "").toString(),
+    packages,
     recipient: {
       recipientId: (fd.get("recipient.recipientId") ?? "").toString(),
       saveAsReusable:
         fd.get("recipient.saveAsReusable") === "on" ||
         fd.get("recipient.saveAsReusable") === "true",
-      companyName: (fd.get("recipient.companyName") ?? "").toString(),
       contactName: (fd.get("recipient.contactName") ?? "").toString(),
       phone: (fd.get("recipient.phone") ?? "").toString(),
-      email: (fd.get("recipient.email") ?? "").toString(),
-      country: (fd.get("recipient.country") ?? "").toString(),
-      stateProvince: (fd.get("recipient.stateProvince") ?? "").toString(),
-      city: (fd.get("recipient.city") ?? "").toString(),
-      postalCode: (fd.get("recipient.postalCode") ?? "").toString(),
-      addressLine1: (fd.get("recipient.addressLine1") ?? "").toString(),
-      addressLine2: (fd.get("recipient.addressLine2") ?? "").toString(),
-      addressLine3: (fd.get("recipient.addressLine3") ?? "").toString(),
+      nationalId: (fd.get("recipient.nationalId") ?? "").toString(),
+      address: (fd.get("recipient.address") ?? "").toString(),
     },
   };
 }
@@ -153,7 +143,7 @@ export function parseOrderFormData(fd: FormData): Record<string, unknown> {
     status: (fd.get("status") ?? "DRAFT").toString(),
     pickupMethod: (fd.get("pickupMethod") ?? "NONE").toString(),
     notes: (fd.get("notes") ?? "").toString(),
-    ...parseCarrierForwardBlock(fd),
+    ...parseSaleExtraBlock(fd),
   };
 }
 
@@ -183,22 +173,38 @@ export const supplyUsedRowSchema = z.object({
 
 export type SupplyUsedRowInput = z.infer<typeof supplyUsedRowSchema>;
 
-export const orderCreateInputSchema = z.object({
-  customerId: z.string().min(1, "Vui lòng chọn khách hàng."),
-  serviceId: z.string().min(1, "Vui lòng chọn dịch vụ."),
-  salesUserId: z.string().trim().optional().or(z.literal("")),
-  pickupCode: z.string().trim().min(1, "Vui lòng nhập mã lệnh lấy hàng."),
-  customerFeeVnd: z
-    .coerce.number({ message: "Cước thu khách không hợp lệ." })
-    .int("Cước thu khách không hợp lệ.")
-    .nonnegative("Cước thu khách không hợp lệ."),
-  status: z.nativeEnum(OrderStatus).default(OrderStatus.DRAFT),
-  pickupMethod: z.nativeEnum(PickupMethod).default(PickupMethod.NONE),
-  notes: z.string().trim().optional().or(z.literal("")),
-  extraCosts: z.array(extraCostRowSchema).default([]),
-  suppliesUsed: z.array(supplyUsedRowSchema).default([]),
-  ...carrierForwardBlockShape,
-});
+/**
+ * Tạo Order — pickupCode optional. Nếu có → load packages từ Pickup;
+ * nếu không → cần packages bill nhập tay (ít nhất 1 kiện).
+ */
+export const orderCreateInputSchema = z
+  .object({
+    customerId: z.string().min(1, "Vui lòng chọn khách hàng."),
+    serviceId: z.string().min(1, "Vui lòng chọn dịch vụ."),
+    salesUserId: z.string().trim().optional().or(z.literal("")),
+    pickupCode: z.string().trim().optional().or(z.literal("")),
+    customerFeeVnd: z
+      .coerce.number({ message: "Cước thu khách không hợp lệ." })
+      .int("Cước thu khách không hợp lệ.")
+      .nonnegative("Cước thu khách không hợp lệ."),
+    status: z.nativeEnum(OrderStatus).default(OrderStatus.DRAFT),
+    pickupMethod: z.nativeEnum(PickupMethod).default(PickupMethod.NONE),
+    notes: z.string().trim().optional().or(z.literal("")),
+    extraCosts: z.array(extraCostRowSchema).default([]),
+    suppliesUsed: z.array(supplyUsedRowSchema).default([]),
+    ...saleExtraBlockShape,
+  })
+  .superRefine((data, ctx) => {
+    const hasPickup = !!(data.pickupCode && data.pickupCode.trim() !== "");
+    const hasPkg = data.packages.length > 0;
+    if (!hasPickup && !hasPkg) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Cần nhập kiện hàng hoặc mã lệnh lấy hàng.",
+        path: ["packages"],
+      });
+    }
+  });
 
 export type OrderCreateInput = z.infer<typeof orderCreateInputSchema>;
 
@@ -214,7 +220,6 @@ export function parseOrderCreateFormData(fd: FormData): Record<string, unknown> 
   for (const i of Array.from(extraIndexes).sort((a, b) => a - b)) {
     const name = (fd.get(`extra[${i}][name]`) ?? "").toString();
     const unitAmountVnd = (fd.get(`extra[${i}][unitAmountVnd]`) ?? "").toString();
-    // Skip rows the admin left entirely blank.
     if (name.trim() === "" && unitAmountVnd.trim() === "") continue;
     extraCosts.push({
       costItemId: (fd.get(`extra[${i}][costItemId]`) ?? "").toString(),
@@ -250,6 +255,6 @@ export function parseOrderCreateFormData(fd: FormData): Record<string, unknown> 
     notes: (fd.get("notes") ?? "").toString(),
     extraCosts,
     suppliesUsed,
-    ...parseCarrierForwardBlock(fd),
+    ...parseSaleExtraBlock(fd),
   };
 }

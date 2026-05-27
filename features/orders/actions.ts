@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { buildOrderCode } from "@/lib/codegen";
+import { buildOrderCode, buildPickupCode } from "@/lib/codegen";
 import { getCurrentUser, requireRole, type CurrentUser } from "@/lib/auth";
 import {
   calculateOrderPackageTotals,
@@ -19,7 +19,6 @@ import {
   orderInputSchema,
   parseOrderCreateFormData,
   parseOrderFormData,
-  type InvoiceItemRowInput,
   type RecipientBlockInput,
 } from "./schemas";
 
@@ -100,19 +99,11 @@ async function refundOrderStockMovements(
   }
 }
 
-/** Tính tổng giá trị USD của các invoice items. */
-function sumInvoiceItemsUsd(items: InvoiceItemRowInput[]): number {
-  return items.reduce(
-    (sum, it) => sum + Number((it.quantity * it.unitPriceUsd).toFixed(2)),
-    0
-  );
-}
-
 /**
  * Resolve người nhận cho đơn:
  *  - Nếu form có recipientId hợp lệ → tái dùng
- *  - Ngược lại tạo mới (nếu có đủ field cốt lõi) + optional saveAsReusable
- *  - Nếu form trống hoàn toàn → trả về null (đơn chưa có recipient — pre-international flow)
+ *  - Ngược lại tạo mới (nếu có đủ contactName + phone + address)
+ *  - Nếu form trống hoàn toàn → trả về null
  */
 async function resolveRecipientId(
   tx: Prisma.TransactionClient,
@@ -126,28 +117,34 @@ async function resolveRecipientId(
     });
     return existing?.id ?? null;
   }
-  // Tạo mới — bắt buộc 5 field cốt lõi đã được validate ở schema.
-  if (!block.contactName || !block.phone || !block.country || !block.city) {
+  if (!block.contactName || !block.phone || !block.address) {
     return null;
   }
   const created = await tx.recipient.create({
     data: {
       customerId: block.saveAsReusable ? customerId : null,
-      companyName: normOpt(block.companyName ?? undefined),
       contactName: block.contactName.trim(),
       phone: block.phone.trim(),
-      email: normOpt(block.email ?? undefined),
-      country: block.country.trim().toUpperCase(),
-      stateProvince: normOpt(block.stateProvince ?? undefined),
-      city: block.city.trim(),
-      postalCode: (block.postalCode ?? "").trim(),
-      addressLine1: (block.addressLine1 ?? "").trim(),
-      addressLine2: normOpt(block.addressLine2 ?? undefined),
-      addressLine3: normOpt(block.addressLine3 ?? undefined),
+      nationalId: normOpt(block.nationalId ?? undefined),
+      address: block.address.trim(),
     },
     select: { id: true },
   });
   return created.id;
+}
+
+/** Validate assignedTo phải là user role STAFF/DRIVER + isActive. Trả null nếu không hợp lệ. */
+async function resolveAssignedToUserId(
+  formValue: string | undefined
+): Promise<string | null> {
+  const picked = (formValue ?? "").trim();
+  if (!picked) return null;
+  const u = await prisma.user.findUnique({
+    where: { id: picked },
+    select: { role: true, isActive: true },
+  });
+  if (!u || !u.isActive) return null;
+  return u.role === "STAFF" || u.role === "DRIVER" ? picked : null;
 }
 
 async function nextOrderCode(date: Date): Promise<string> {
@@ -206,7 +203,7 @@ export async function createOrder(
       }),
       prisma.customer.findUnique({
         where: { id: data.customerId },
-        select: { id: true },
+        select: { id: true, name: true, phone: true, address: true },
       }),
     ]);
     if (!service) {
@@ -224,63 +221,87 @@ export async function createOrder(
       };
     }
 
-    // Lệnh lấy hàng — nguồn kiện hàng & cân nặng cho đơn.
-    const pickup = await prisma.pickupRequest.findUnique({
-      where: { code: data.pickupCode.trim() },
-      select: {
-        id: true,
-        orderId: true,
-        createdById: true,
-        packages: {
-          select: {
-            id: true,
-            actualWeightKg: true,
-            lengthCm: true,
-            widthCm: true,
-            heightCm: true,
+    // Nhánh A: có pickupCode → load pickup hiện có và dùng packages của nó.
+    // Nhánh B: không có pickupCode → tạo PickupRequest stub từ form bill packages + customer info.
+    const hasPickupCode = !!(data.pickupCode && data.pickupCode.trim() !== "");
+    let existingPickupId: string | null = null;
+    let existingPickupPackageIds: string[] = [];
+    let packageInputs: Array<{
+      description: string | null;
+      actualWeightKg: number;
+      lengthCm: number;
+      widthCm: number;
+      heightCm: number;
+    }> = [];
+
+    if (hasPickupCode) {
+      const pickup = await prisma.pickupRequest.findUnique({
+        where: { code: data.pickupCode!.trim() },
+        select: {
+          id: true,
+          orderId: true,
+          createdById: true,
+          packages: {
+            select: {
+              id: true,
+              description: true,
+              actualWeightKg: true,
+              lengthCm: true,
+              widthCm: true,
+              heightCm: true,
+            },
           },
         },
-      },
-    });
-    if (!pickup) {
-      return {
-        ok: false,
-        fieldErrors: { pickupCode: ["Không tìm thấy lệnh lấy hàng với mã này."] },
-      };
-    }
-    if (pickup.orderId) {
-      return {
-        ok: false,
-        fieldErrors: { pickupCode: ["Lệnh lấy hàng này đã gắn cho đơn khác."] },
-      };
-    }
-    if (pickup.packages.length === 0) {
-      return {
-        ok: false,
-        fieldErrors: { pickupCode: ["Lệnh lấy hàng chưa có kiện hàng."] },
-      };
-    }
-    // SALE chỉ dùng được mã lệnh lấy hàng do chính mình tạo.
-    if (actor.role === "SALE" && pickup.createdById !== actor.id) {
-      return {
-        ok: false,
-        fieldErrors: {
-          pickupCode: ["Mã lệnh lấy hàng này không thuộc về bạn."],
-        },
-      };
+      });
+      if (!pickup) {
+        return {
+          ok: false,
+          fieldErrors: { pickupCode: ["Không tìm thấy lệnh lấy hàng với mã này."] },
+        };
+      }
+      if (pickup.orderId) {
+        return {
+          ok: false,
+          fieldErrors: { pickupCode: ["Lệnh lấy hàng này đã gắn cho đơn khác."] },
+        };
+      }
+      if (pickup.packages.length === 0) {
+        return {
+          ok: false,
+          fieldErrors: { pickupCode: ["Lệnh lấy hàng chưa có kiện hàng."] },
+        };
+      }
+      if (actor.role === "SALE" && pickup.createdById !== actor.id) {
+        return {
+          ok: false,
+          fieldErrors: {
+            pickupCode: ["Mã lệnh lấy hàng này không thuộc về bạn."],
+          },
+        };
+      }
+      existingPickupId = pickup.id;
+      existingPickupPackageIds = pickup.packages.map((p) => p.id);
+      packageInputs = pickup.packages.map((p) => ({
+        description: p.description,
+        actualWeightKg: Number(p.actualWeightKg),
+        lengthCm: p.lengthCm,
+        widthCm: p.widthCm,
+        heightCm: p.heightCm,
+      }));
+    } else {
+      // Nhánh B: lấy packages từ form Bill.
+      packageInputs = data.packages.map((p) => ({
+        description: normOpt(p.description),
+        actualWeightKg: p.actualWeightKg,
+        lengthCm: p.lengthCm,
+        widthCm: p.widthCm,
+        heightCm: p.heightCm,
+      }));
     }
 
-    // Cân quy đổi tính theo hệ số của dịch vụ đã chọn.
-    const packageWeights = pickup.packages.map((p) =>
-      computePackageWeights(
-        {
-          actualWeightKg: Number(p.actualWeightKg),
-          lengthCm: p.lengthCm,
-          widthCm: p.widthCm,
-          heightCm: p.heightCm,
-        },
-        service.volumetricDivisor
-      )
+    // Cân quy đổi tính theo hệ số dịch vụ.
+    const packageWeights = packageInputs.map((p) =>
+      computePackageWeights(p, service.volumetricDivisor)
     );
     const totals = calculateOrderPackageTotals(packageWeights);
 
@@ -341,8 +362,7 @@ export async function createOrder(
     const createdById = actor.id;
     const salesUserId = await resolveSalesUserId(actor, data.salesUserId);
 
-    const totalDeclaredValueUsd =
-      data.invoiceItems.length > 0 ? sumInvoiceItemsUsd(data.invoiceItems) : null;
+    const assignedToUserId = await resolveAssignedToUserId(data.assignedToUserId);
 
     const created = await prisma.$transaction(async (tx) => {
       const recipientId = await resolveRecipientId(tx, customer.id, data.recipient);
@@ -365,41 +385,66 @@ export async function createOrder(
           salesUserId,
           notes: normOpt(data.notes),
           recipientId,
-          customsExportType: data.customsExportType,
-          totalDeclaredValueUsd,
-          serviceTier: normOpt(data.serviceTier),
-          requiresSignature: data.requiresSignature,
-          branchCode: normOpt(data.branchCode),
+          assignedToUserId,
         },
         select: { id: true },
       });
 
-      // Invoice items declared cho carrier upstream (Kango/KSN/Go).
-      if (data.invoiceItems.length > 0) {
-        await tx.invoiceItem.createMany({
-          data: data.invoiceItems.map((it) => ({
-            orderId: order.id,
-            description: it.description.trim(),
-            quantity: it.quantity,
-            unit: it.unit.trim(),
-            unitPriceUsd: it.unitPriceUsd,
-            totalValueUsd: Number((it.quantity * it.unitPriceUsd).toFixed(2)),
-          })),
+      // Pickup: branch theo có/không pickupCode.
+      if (existingPickupId) {
+        // Nhánh A: gắn pickup hiện có vào đơn + cập nhật cân quy đổi của kiện.
+        await tx.pickupRequest.update({
+          where: { id: existingPickupId },
+          data: { orderId: order.id },
         });
-      }
-
-      // Gắn lệnh lấy hàng vào đơn.
-      await tx.pickupRequest.update({
-        where: { id: pickup.id },
-        data: { orderId: order.id },
-      });
-      // Cập nhật cân quy đổi của kiện theo hệ số dịch vụ (lúc tạo lệnh tính tạm 5000).
-      for (let i = 0; i < pickup.packages.length; i++) {
-        await tx.package.update({
-          where: { id: pickup.packages[i].id },
+        for (let i = 0; i < existingPickupPackageIds.length; i++) {
+          await tx.package.update({
+            where: { id: existingPickupPackageIds[i] },
+            data: {
+              volumetricWeightKg: packageWeights[i].volumetricWeightKg,
+              chargeableWeightKg: packageWeights[i].chargeableWeightKg,
+            },
+          });
+        }
+      } else {
+        // Nhánh B: tạo PickupRequest stub với address/contact lấy từ customer
+        // + ghi packages từ form Bill.
+        const pkCount = await tx.pickupRequest.count({
+          where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+        });
+        const pickupCodeNew = buildPickupCode(pkCount + 1, new Date());
+        const stub = await tx.pickupRequest.create({
           data: {
+            code: pickupCodeNew,
+            createdById,
+            currentStatus: "PENDING",
+            pickupAddress: customer.address ?? "(chưa rõ)",
+            pickupContactName: customer.name,
+            pickupContactPhone: customer.phone,
+            orderId: order.id,
+            notes: "Tự tạo từ form Order — sale không có pickup riêng",
+          },
+          select: { id: true },
+        });
+        await tx.package.createMany({
+          data: packageInputs.map((p, i) => ({
+            pickupRequestId: stub.id,
+            description: p.description,
+            actualWeightKg: p.actualWeightKg,
+            lengthCm: p.lengthCm,
+            widthCm: p.widthCm,
+            heightCm: p.heightCm,
             volumetricWeightKg: packageWeights[i].volumetricWeightKg,
             chargeableWeightKg: packageWeights[i].chargeableWeightKg,
+          })),
+        });
+        await tx.pickupStatusLog.create({
+          data: {
+            pickupRequestId: stub.id,
+            fromStatus: null,
+            toStatus: "PENDING",
+            byUserId: createdById,
+            note: "Tự tạo lúc sale tạo đơn (không có pickup riêng)",
           },
         });
       }
@@ -543,9 +588,7 @@ export async function updateOrder(
       };
     }
     const salesUserId = await resolveSalesUserId(actor, data.salesUserId);
-
-    const totalDeclaredValueUsd =
-      data.invoiceItems.length > 0 ? sumInvoiceItemsUsd(data.invoiceItems) : null;
+    const assignedToUserId = await resolveAssignedToUserId(data.assignedToUserId);
 
     await prisma.$transaction(async (tx) => {
       const recipientId = await resolveRecipientId(tx, data.customerId, data.recipient);
@@ -568,28 +611,9 @@ export async function updateOrder(
           pickupMethod: data.pickupMethod,
           notes: normOpt(data.notes),
           recipientId,
-          customsExportType: data.customsExportType,
-          totalDeclaredValueUsd,
-          serviceTier: normOpt(data.serviceTier),
-          requiresSignature: data.requiresSignature,
-          branchCode: normOpt(data.branchCode),
+          assignedToUserId,
         },
       });
-
-      // Thay toàn bộ invoice items.
-      await tx.invoiceItem.deleteMany({ where: { orderId: id } });
-      if (data.invoiceItems.length > 0) {
-        await tx.invoiceItem.createMany({
-          data: data.invoiceItems.map((it) => ({
-            orderId: id,
-            description: it.description.trim(),
-            quantity: it.quantity,
-            unit: it.unit.trim(),
-            unitPriceUsd: it.unitPriceUsd,
-            totalValueUsd: Number((it.quantity * it.unitPriceUsd).toFixed(2)),
-          })),
-        });
-      }
 
       // Huỷ đơn → hoàn kho mọi vật tư đã xuất cho đơn này (chưa hoàn lần nào).
       // Idempotent: refundedAt đánh dấu OUT đã hoàn → tránh hoàn 2 lần.
@@ -659,6 +683,18 @@ export async function markOrderForwarded(
   revalidatePath(`/admin/orders/${orderId}`);
   revalidatePath("/admin/processing");
   return { ok: true, data: { id: orderId } };
+}
+
+/**
+ * Wrapper trả về Promise<void> để gắn vào `<form action>` (Next.js yêu cầu).
+ * Tái dùng logic của unmarkOrderForwarded.
+ */
+export async function unmarkOrderForwardedForm(
+  orderId: string,
+  formData: FormData
+): Promise<void> {
+  void formData;
+  await unmarkOrderForwarded(orderId);
 }
 
 /** Bỏ đánh dấu đã đẩy carrier (ADMIN dùng khi ghi nhầm hoặc cần đẩy lại). */
