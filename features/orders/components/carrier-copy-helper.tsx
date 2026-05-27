@@ -164,17 +164,17 @@ function CopyableTable({
 
 export interface CarrierCopyHelperProps {
   orderCode: string;
-  /** Sender = Customer EZWAY (người gửi VN). */
+  /** Sender = Customer EZWAY (người gửi VN). CCCD ở đây (khai báo hải quan VN). */
   sender: {
     name: string;
     phone: string;
+    nationalId: string | null;
     address: string;
   };
-  /** Recipient — shape mới đơn giản: contactName + phone + nationalId + address gộp. */
+  /** Recipient — shape đơn giản: contactName + phone + address gộp. KHÔNG CCCD. */
   recipient: {
     contactName: string;
     phone: string;
-    nationalId: string | null;
     address: string | null;
   } | null;
   orderInfo: {
@@ -230,6 +230,7 @@ export function CarrierCopyHelper({
         <CardContent className="space-y-2">
           <CopyableField label={"Họ tên"} value={sender.name} />
           <CopyableField label={"Số điện thoại"} value={sender.phone} />
+          <CopyableField label={"CCCD"} value={sender.nationalId ?? ""} />
           <CopyableField label={"Địa chỉ"} value={sender.address} multiline />
         </CardContent>
       </Card>
@@ -243,7 +244,6 @@ export function CarrierCopyHelper({
             <>
               <CopyableField label={"Họ tên"} value={recipient.contactName} />
               <CopyableField label={"Số điện thoại"} value={recipient.phone} />
-              <CopyableField label={"CCCD"} value={recipient.nationalId ?? ""} />
               <CopyableField
                 label={"Địa chỉ"}
                 value={recipient.address ?? ""}

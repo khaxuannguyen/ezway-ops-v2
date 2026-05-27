@@ -18,7 +18,6 @@ export const recipientBlockSchema = z
     saveAsReusable: z.boolean().default(false),
     contactName: z.string().trim().optional().or(z.literal("")),
     phone: z.string().trim().optional().or(z.literal("")),
-    nationalId: z.string().trim().optional().or(z.literal("")),
     address: z.string().trim().optional().or(z.literal("")),
   })
   .superRefine((data, ctx) => {
@@ -128,7 +127,6 @@ function parseSaleExtraBlock(fd: FormData): Record<string, unknown> {
         fd.get("recipient.saveAsReusable") === "true",
       contactName: (fd.get("recipient.contactName") ?? "").toString(),
       phone: (fd.get("recipient.phone") ?? "").toString(),
-      nationalId: (fd.get("recipient.nationalId") ?? "").toString(),
       address: (fd.get("recipient.address") ?? "").toString(),
     },
   };
@@ -174,37 +172,28 @@ export const supplyUsedRowSchema = z.object({
 export type SupplyUsedRowInput = z.infer<typeof supplyUsedRowSchema>;
 
 /**
- * Tạo Order — pickupCode optional. Nếu có → load packages từ Pickup;
- * nếu không → cần packages bill nhập tay (ít nhất 1 kiện).
+ * Tạo Order — Bill packages LUÔN bắt buộc (≥1 kiện). pickupCode chỉ là
+ * reference text optional, KHÔNG ảnh hưởng đến packages.
  */
-export const orderCreateInputSchema = z
-  .object({
-    customerId: z.string().min(1, "Vui lòng chọn khách hàng."),
-    serviceId: z.string().min(1, "Vui lòng chọn dịch vụ."),
-    salesUserId: z.string().trim().optional().or(z.literal("")),
-    pickupCode: z.string().trim().optional().or(z.literal("")),
-    customerFeeVnd: z
-      .coerce.number({ message: "Cước thu khách không hợp lệ." })
-      .int("Cước thu khách không hợp lệ.")
-      .nonnegative("Cước thu khách không hợp lệ."),
-    status: z.nativeEnum(OrderStatus).default(OrderStatus.DRAFT),
-    pickupMethod: z.nativeEnum(PickupMethod).default(PickupMethod.NONE),
-    notes: z.string().trim().optional().or(z.literal("")),
-    extraCosts: z.array(extraCostRowSchema).default([]),
-    suppliesUsed: z.array(supplyUsedRowSchema).default([]),
-    ...saleExtraBlockShape,
-  })
-  .superRefine((data, ctx) => {
-    const hasPickup = !!(data.pickupCode && data.pickupCode.trim() !== "");
-    const hasPkg = data.packages.length > 0;
-    if (!hasPickup && !hasPkg) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Cần nhập kiện hàng hoặc mã lệnh lấy hàng.",
-        path: ["packages"],
-      });
-    }
-  });
+export const orderCreateInputSchema = z.object({
+  customerId: z.string().min(1, "Vui lòng chọn khách hàng."),
+  serviceId: z.string().min(1, "Vui lòng chọn dịch vụ."),
+  salesUserId: z.string().trim().optional().or(z.literal("")),
+  pickupCode: z.string().trim().optional().or(z.literal("")),
+  customerFeeVnd: z
+    .coerce.number({ message: "Cước thu khách không hợp lệ." })
+    .int("Cước thu khách không hợp lệ.")
+    .nonnegative("Cước thu khách không hợp lệ."),
+  status: z.nativeEnum(OrderStatus).default(OrderStatus.DRAFT),
+  pickupMethod: z.nativeEnum(PickupMethod).default(PickupMethod.NONE),
+  notes: z.string().trim().optional().or(z.literal("")),
+  extraCosts: z.array(extraCostRowSchema).default([]),
+  suppliesUsed: z.array(supplyUsedRowSchema).default([]),
+  ...saleExtraBlockShape,
+  packages: z
+    .array(orderPackageRowSchema)
+    .min(1, "Cần ít nhất 1 kiện hàng."),
+});
 
 export type OrderCreateInput = z.infer<typeof orderCreateInputSchema>;
 

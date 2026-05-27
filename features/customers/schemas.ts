@@ -17,6 +17,8 @@ export const customerInputSchema = z
       .optional()
       .or(z.literal("")),
     address: z.string().trim().min(1, "Vui lòng nhập địa chỉ."),
+    /** CCCD — cần cho khai báo hải quan khi gửi quốc tế. Tuỳ chọn. */
+    nationalId: z.string().trim().optional().or(z.literal("")),
     isBusiness: z.boolean().default(false),
     taxCode: z.string().trim().optional().or(z.literal("")),
     notes: z.string().trim().optional().or(z.literal("")),
@@ -41,6 +43,7 @@ export function parseFormData(fd: FormData): Record<string, unknown> {
     phone: (fd.get("phone") ?? "").toString(),
     email: (fd.get("email") ?? "").toString(),
     address: (fd.get("address") ?? "").toString(),
+    nationalId: (fd.get("nationalId") ?? "").toString(),
     isBusiness: fd.get("isBusiness") === "on" || fd.get("isBusiness") === "true",
     taxCode: (fd.get("taxCode") ?? "").toString(),
     notes: (fd.get("notes") ?? "").toString(),

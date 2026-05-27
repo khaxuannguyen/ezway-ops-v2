@@ -93,7 +93,10 @@ export default async function ProcessingPage() {
                         <div className="flex flex-col">
                           <span>{r.recipient.contactName}</span>
                           <span className="text-xs text-muted-foreground">
-                            {r.recipient.city + " · " + r.recipient.country}
+                            {(r.recipient.city ?? "") +
+                              (r.recipient.country
+                                ? " · " + r.recipient.country
+                                : "")}
                           </span>
                         </div>
                       ) : (

@@ -28,11 +28,11 @@ export default async function ForwardOrderPage({ params }: PageProps) {
     redirect(`/admin/orders/${order.id}`);
   }
 
-  // Sender = Customer (sender VN). Phase A trước đó hardcode env EZWAY — sai
-  // model. Forwarder ship hộ khách; người gửi trên invoice/portal là khách EZWAY.
+  // Sender = Customer (sender VN). CCCD lấy từ Customer.nationalId.
   const sender = {
     name: order.customer.name,
     phone: order.customer.phone,
+    nationalId: order.customer.nationalId,
     address: order.customer.address ?? "",
   };
 
@@ -48,7 +48,6 @@ export default async function ForwardOrderPage({ params }: PageProps) {
     ? {
         contactName: order.recipient.contactName,
         phone: order.recipient.phone,
-        nationalId: order.recipient.nationalId,
         address: order.recipient.address,
       }
     : null;

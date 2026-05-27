@@ -21,6 +21,7 @@ export interface CustomerFormDefaults {
   phone?: string;
   email?: string | null;
   address?: string;
+  nationalId?: string | null;
   isBusiness?: boolean;
   taxCode?: string | null;
   notes?: string | null;
@@ -123,6 +124,20 @@ export function CustomerForm({
               name="address"
               defaultValue={defaults?.address ?? ""}
               rows={2}
+            />
+          </Field>
+          <Field
+            label={"CCCD / Căn cước (tuỳ chọn)"}
+            htmlFor="nationalId"
+            description={"Cần cho khai báo hải quan khi gửi quốc tế."}
+            error={err("nationalId")}
+            className="md:col-span-2"
+          >
+            <Input
+              id="nationalId"
+              name="nationalId"
+              defaultValue={defaults?.nationalId ?? ""}
+              autoComplete="off"
             />
           </Field>
         </div>

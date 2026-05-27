@@ -187,43 +187,19 @@ export default async function OrderDetailPage({ params }: PageProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>{"Người nhận quốc tế"}</CardTitle>
-            {order.recipient ? (
-              <Badge tone="info">{order.recipient.country}</Badge>
-            ) : (
+            {!order.recipient ? (
               <Badge tone="warning">{"Chưa có"}</Badge>
-            )}
+            ) : null}
           </CardHeader>
           <CardContent>
             {order.recipient ? (
               <div className="grid gap-2 text-sm sm:grid-cols-2">
-                <Info label={"Người nhận"}>
-                  {order.recipient.contactName}
-                  {order.recipient.companyName ? (
-                    <span className="block text-xs text-muted-foreground">
-                      {order.recipient.companyName}
-                    </span>
-                  ) : null}
-                </Info>
+                <Info label={"Người nhận"}>{order.recipient.contactName}</Info>
                 <Info label={"Số điện thoại"}>{order.recipient.phone}</Info>
-                <Info label={"Email"}>{order.recipient.email ?? "—"}</Info>
-                <Info label={"Quốc gia"}>{order.recipient.country}</Info>
-                <Info label={"Thành phố"}>
-                  {order.recipient.city +
-                    (order.recipient.stateProvince
-                      ? ", " + order.recipient.stateProvince
-                      : "")}
-                </Info>
-                <Info label={"Postal code"}>{order.recipient.postalCode}</Info>
                 <Info label={"Địa chỉ"} className="sm:col-span-2">
-                  <div className="whitespace-pre-line">
-                    {[
-                      order.recipient.addressLine1,
-                      order.recipient.addressLine2,
-                      order.recipient.addressLine3,
-                    ]
-                      .filter(Boolean)
-                      .join("\n")}
-                  </div>
+                  <span className="whitespace-pre-line">
+                    {order.recipient.address ?? "—"}
+                  </span>
                 </Info>
               </div>
             ) : (

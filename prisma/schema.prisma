@@ -207,6 +207,8 @@ model Customer {
   address    String
   isBusiness Boolean @default(false)
   taxCode    String?
+  /// CCCD / Căn cước công dân — yêu cầu cho khai báo hải quan khi gửi quốc tế.
+  nationalId String?
   notes      String?
 
   salesUserId String?
@@ -297,8 +299,6 @@ model Recipient {
   contactName  String
   phone        String
   email        String?
-  /// CCCD / National ID (optional, dùng cho khai báo Kango/quốc tế).
-  nationalId   String?
 
   /// Địa chỉ gộp 1 field multi-line — sale điền nhanh; ADMIN có thể tách
   /// thành structured fields bên dưới khi cần paste sang carrier portal.
@@ -391,6 +391,10 @@ model Order {
   // hoa hồng cho NV đóng hàng. Nullable: chưa gán cũng tạo đơn được.
   assignedToUserId String?
   assignedTo       User?   @relation("OrderAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+
+  /// Reference text — mã pickup từ trước (nếu có). Sale nhập tay; KHÔNG link
+  /// đến PickupRequest table (mỗi Order có stub PickupRequest tự sinh từ Bill).
+  linkedPickupCode String?
 
   pickupMethod          PickupMethod   @default(NONE)
   thirdPartyProvider    String?

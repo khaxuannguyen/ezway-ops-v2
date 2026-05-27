@@ -34,6 +34,7 @@ export interface CustomerOption {
   name: string;
   phone: string;
   address: string;
+  nationalId: string | null;
 }
 export interface ServiceOption {
   id: string;
@@ -107,7 +108,12 @@ export function OrderForm({
     if (!selectedCustomerId) return null;
     const c = customers.find((cc) => cc.id === selectedCustomerId);
     if (!c) return null;
-    return { name: c.name, phone: c.phone, address: c.address };
+    return {
+      name: c.name,
+      phone: c.phone,
+      address: c.address,
+      nationalId: c.nationalId,
+    };
   }, [selectedCustomerId, customers]);
 
   const err = (n: string) => (state ? fieldError(state, n) : undefined);

@@ -10,18 +10,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import type { RecipientLite } from "@/features/recipients/queries";
 
-/** Tóm tắt customer (sender VN) — hiển thị read-only. Sale phải sửa Customer profile nếu thông tin sai. */
+/** Tóm tắt customer (sender VN) — hiển thị read-only. */
 export interface SenderSummary {
   name: string;
   phone: string;
   address: string;
+  nationalId: string | null;
 }
 
 export interface RecipientDefault {
   recipientId?: string | null;
   contactName?: string | null;
   phone?: string | null;
-  nationalId?: string | null;
   address?: string | null;
 }
 
@@ -50,7 +50,7 @@ export interface CarrierForwardSectionProps {
     packages?: PackageRowDefault[];
     pickupCode?: string | null;
   };
-  /** Show bill packages repeater + pickup section. False khi form Update (đã có pickup gắn). */
+  /** Show bill packages repeater + pickup section. False khi form Update. */
   showPackages?: boolean;
   errors?: Record<string, string | undefined>;
 }
@@ -122,19 +122,33 @@ export function CarrierForwardSection({
 
   return (
     <>
-      <FormSection title={"Người gửi (Sender)"} description={"Lấy từ Khách hàng — read-only."}>
+      <FormSection
+        title={"Người gửi (Sender)"}
+        description={"Lấy từ Khách hàng — read-only."}
+      >
         {sender ? (
           <div className="rounded-md border border-border bg-muted/30 p-4 text-sm">
             <div className="grid gap-2 sm:grid-cols-2">
               <Info label={"Họ tên"}>{sender.name}</Info>
               <Info label={"Số điện thoại"}>{sender.phone}</Info>
+              <Info label={"CCCD"}>
+                {sender.nationalId ? (
+                  sender.nationalId
+                ) : (
+                  <span className="text-warning">
+                    {"(chưa có — cập nhật profile khách)"}
+                  </span>
+                )}
+              </Info>
               <Info label={"Địa chỉ"} className="sm:col-span-2">
-                <span className="whitespace-pre-line">{sender.address || "—"}</span>
+                <span className="whitespace-pre-line">
+                  {sender.address || "—"}
+                </span>
               </Info>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
               {
-                "Nếu thông tin người gửi sai, vào /admin/customers/<khách> để cập nhật profile khách."
+                "Nếu thông tin người gửi sai/thiếu, vào /admin/customers/<khách> → Chỉnh sửa."
               }
             </p>
           </div>
@@ -195,13 +209,6 @@ export function CarrierForwardSection({
                   defaultValue={defaults?.recipient?.phone ?? ""}
                 />
               </Field>
-              <Field label={"CCCD (tuỳ chọn)"} htmlFor="recipient.nationalId">
-                <Input
-                  id="recipient.nationalId"
-                  name="recipient.nationalId"
-                  defaultValue={defaults?.recipient?.nationalId ?? ""}
-                />
-              </Field>
             </div>
             <Field
               label={"Địa chỉ"}
@@ -260,7 +267,9 @@ export function CarrierForwardSection({
         <>
           <FormSection
             title={"Pickup (lệnh lấy hàng)"}
-            description={"Nếu đã có lệnh pickup riêng — tick vào và nhập mã."}
+            description={
+              "Nếu đã có lệnh pickup riêng từ trước — tick và nhập mã (chỉ là reference text, không thay thế thông tin kiện hàng bên dưới)."
+            }
           >
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -272,12 +281,7 @@ export function CarrierForwardSection({
               {"Có pickup từ trước"}
             </label>
             {hasPickup ? (
-              <Field
-                label={"Mã pickup (PK-...)"}
-                htmlFor="pickupCode"
-                required
-                error={errors?.pickupCode}
-              >
+              <Field label={"Mã pickup (PK-...)"} htmlFor="pickupCode">
                 <Input
                   id="pickupCode"
                   name="pickupCode"
@@ -286,122 +290,119 @@ export function CarrierForwardSection({
                 />
               </Field>
             ) : (
-              // Đảm bảo form gửi pickupCode rỗng (không phải undefined).
               <input type="hidden" name="pickupCode" value="" />
             )}
           </FormSection>
 
-          {!hasPickup ? (
-            <FormSection
-              title={"Kiện hàng (Bill)"}
-              description={
-                "Mỗi dòng = 1 kiện. Mô tả nội dung + kích thước + cân nặng. Hệ thống tự tạo lệnh lấy hàng kèm."
-              }
-            >
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{"Danh sách kiện"}</p>
-                  <Button type="button" variant="outline" size="sm" onClick={addPkg}>
-                    <Plus className="h-4 w-4" aria-hidden />
-                    {"Thêm kiện"}
-                  </Button>
-                </div>
-                {errors?.packages ? (
-                  <p className="text-xs text-destructive">{errors.packages}</p>
-                ) : null}
-
-                {pkgRows.map((row, i) => (
-                  <div
-                    key={row.key}
-                    className="grid gap-2 rounded-md border border-border bg-muted/20 p-3 sm:grid-cols-[1.5fr_repeat(4,90px)_40px]"
-                  >
-                    <Field
-                      label={i === 0 ? "Mô tả hàng" : ""}
-                      htmlFor={`orderPkg[${i}][description]`}
-                    >
-                      <Input
-                        id={`orderPkg[${i}][description]`}
-                        name={`orderPkg[${i}][description]`}
-                        value={row.description}
-                        onChange={(e) => setPkg(i, { description: e.target.value })}
-                        placeholder="Áo thun, mỹ phẩm, sách..."
-                      />
-                    </Field>
-                    <Field
-                      label={i === 0 ? "Dài (cm)" : ""}
-                      htmlFor={`orderPkg[${i}][lengthCm]`}
-                    >
-                      <Input
-                        id={`orderPkg[${i}][lengthCm]`}
-                        name={`orderPkg[${i}][lengthCm]`}
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={row.lengthCm}
-                        onChange={(e) => setPkg(i, { lengthCm: e.target.value })}
-                      />
-                    </Field>
-                    <Field
-                      label={i === 0 ? "Rộng (cm)" : ""}
-                      htmlFor={`orderPkg[${i}][widthCm]`}
-                    >
-                      <Input
-                        id={`orderPkg[${i}][widthCm]`}
-                        name={`orderPkg[${i}][widthCm]`}
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={row.widthCm}
-                        onChange={(e) => setPkg(i, { widthCm: e.target.value })}
-                      />
-                    </Field>
-                    <Field
-                      label={i === 0 ? "Cao (cm)" : ""}
-                      htmlFor={`orderPkg[${i}][heightCm]`}
-                    >
-                      <Input
-                        id={`orderPkg[${i}][heightCm]`}
-                        name={`orderPkg[${i}][heightCm]`}
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={row.heightCm}
-                        onChange={(e) => setPkg(i, { heightCm: e.target.value })}
-                      />
-                    </Field>
-                    <Field
-                      label={i === 0 ? "Cân (kg)" : ""}
-                      htmlFor={`orderPkg[${i}][actualWeightKg]`}
-                    >
-                      <Input
-                        id={`orderPkg[${i}][actualWeightKg]`}
-                        name={`orderPkg[${i}][actualWeightKg]`}
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={row.actualWeightKg}
-                        onChange={(e) =>
-                          setPkg(i, { actualWeightKg: e.target.value })
-                        }
-                      />
-                    </Field>
-                    <div className={i === 0 ? "self-end" : ""}>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removePkg(i)}
-                        disabled={pkgRows.length === 1}
-                        aria-label={"Xoá"}
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+          <FormSection
+            title={"Kiện hàng (Bill)"}
+            description={
+              "Mỗi dòng = 1 kiện. Mô tả nội dung + kích thước + cân nặng. Bắt buộc kể cả khi có pickup từ trước."
+            }
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">{"Danh sách kiện"}</p>
+                <Button type="button" variant="outline" size="sm" onClick={addPkg}>
+                  <Plus className="h-4 w-4" aria-hidden />
+                  {"Thêm kiện"}
+                </Button>
               </div>
-            </FormSection>
-          ) : null}
+              {errors?.packages ? (
+                <p className="text-xs text-destructive">{errors.packages}</p>
+              ) : null}
+
+              {pkgRows.map((row, i) => (
+                <div
+                  key={row.key}
+                  className="grid gap-2 rounded-md border border-border bg-muted/20 p-3 sm:grid-cols-[1.5fr_repeat(4,90px)_40px]"
+                >
+                  <Field
+                    label={i === 0 ? "Mô tả hàng" : ""}
+                    htmlFor={`orderPkg[${i}][description]`}
+                  >
+                    <Input
+                      id={`orderPkg[${i}][description]`}
+                      name={`orderPkg[${i}][description]`}
+                      value={row.description}
+                      onChange={(e) => setPkg(i, { description: e.target.value })}
+                      placeholder="Áo thun, mỹ phẩm, sách..."
+                    />
+                  </Field>
+                  <Field
+                    label={i === 0 ? "Dài (cm)" : ""}
+                    htmlFor={`orderPkg[${i}][lengthCm]`}
+                  >
+                    <Input
+                      id={`orderPkg[${i}][lengthCm]`}
+                      name={`orderPkg[${i}][lengthCm]`}
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={row.lengthCm}
+                      onChange={(e) => setPkg(i, { lengthCm: e.target.value })}
+                    />
+                  </Field>
+                  <Field
+                    label={i === 0 ? "Rộng (cm)" : ""}
+                    htmlFor={`orderPkg[${i}][widthCm]`}
+                  >
+                    <Input
+                      id={`orderPkg[${i}][widthCm]`}
+                      name={`orderPkg[${i}][widthCm]`}
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={row.widthCm}
+                      onChange={(e) => setPkg(i, { widthCm: e.target.value })}
+                    />
+                  </Field>
+                  <Field
+                    label={i === 0 ? "Cao (cm)" : ""}
+                    htmlFor={`orderPkg[${i}][heightCm]`}
+                  >
+                    <Input
+                      id={`orderPkg[${i}][heightCm]`}
+                      name={`orderPkg[${i}][heightCm]`}
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={row.heightCm}
+                      onChange={(e) => setPkg(i, { heightCm: e.target.value })}
+                    />
+                  </Field>
+                  <Field
+                    label={i === 0 ? "Cân (kg)" : ""}
+                    htmlFor={`orderPkg[${i}][actualWeightKg]`}
+                  >
+                    <Input
+                      id={`orderPkg[${i}][actualWeightKg]`}
+                      name={`orderPkg[${i}][actualWeightKg]`}
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={row.actualWeightKg}
+                      onChange={(e) =>
+                        setPkg(i, { actualWeightKg: e.target.value })
+                      }
+                    />
+                  </Field>
+                  <div className={i === 0 ? "self-end" : ""}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removePkg(i)}
+                      disabled={pkgRows.length === 1}
+                      aria-label={"Xoá"}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </FormSection>
         </>
       ) : null}
     </>

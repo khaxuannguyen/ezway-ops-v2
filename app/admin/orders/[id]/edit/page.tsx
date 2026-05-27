@@ -80,7 +80,6 @@ export default async function EditOrderPage({ params }: PageProps) {
                     recipientId: order.recipient.id,
                     contactName: order.recipient.contactName,
                     phone: order.recipient.phone,
-                    nationalId: order.recipient.nationalId,
                     address: order.recipient.address,
                   }
                 : undefined,

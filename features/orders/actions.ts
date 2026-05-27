@@ -125,7 +125,6 @@ async function resolveRecipientId(
       customerId: block.saveAsReusable ? customerId : null,
       contactName: block.contactName.trim(),
       phone: block.phone.trim(),
-      nationalId: normOpt(block.nationalId ?? undefined),
       address: block.address.trim(),
     },
     select: { id: true },
@@ -221,83 +220,16 @@ export async function createOrder(
       };
     }
 
-    // Nhánh A: có pickupCode → load pickup hiện có và dùng packages của nó.
-    // Nhánh B: không có pickupCode → tạo PickupRequest stub từ form bill packages + customer info.
-    const hasPickupCode = !!(data.pickupCode && data.pickupCode.trim() !== "");
-    let existingPickupId: string | null = null;
-    let existingPickupPackageIds: string[] = [];
-    let packageInputs: Array<{
-      description: string | null;
-      actualWeightKg: number;
-      lengthCm: number;
-      widthCm: number;
-      heightCm: number;
-    }> = [];
-
-    if (hasPickupCode) {
-      const pickup = await prisma.pickupRequest.findUnique({
-        where: { code: data.pickupCode!.trim() },
-        select: {
-          id: true,
-          orderId: true,
-          createdById: true,
-          packages: {
-            select: {
-              id: true,
-              description: true,
-              actualWeightKg: true,
-              lengthCm: true,
-              widthCm: true,
-              heightCm: true,
-            },
-          },
-        },
-      });
-      if (!pickup) {
-        return {
-          ok: false,
-          fieldErrors: { pickupCode: ["Không tìm thấy lệnh lấy hàng với mã này."] },
-        };
-      }
-      if (pickup.orderId) {
-        return {
-          ok: false,
-          fieldErrors: { pickupCode: ["Lệnh lấy hàng này đã gắn cho đơn khác."] },
-        };
-      }
-      if (pickup.packages.length === 0) {
-        return {
-          ok: false,
-          fieldErrors: { pickupCode: ["Lệnh lấy hàng chưa có kiện hàng."] },
-        };
-      }
-      if (actor.role === "SALE" && pickup.createdById !== actor.id) {
-        return {
-          ok: false,
-          fieldErrors: {
-            pickupCode: ["Mã lệnh lấy hàng này không thuộc về bạn."],
-          },
-        };
-      }
-      existingPickupId = pickup.id;
-      existingPickupPackageIds = pickup.packages.map((p) => p.id);
-      packageInputs = pickup.packages.map((p) => ({
-        description: p.description,
-        actualWeightKg: Number(p.actualWeightKg),
-        lengthCm: p.lengthCm,
-        widthCm: p.widthCm,
-        heightCm: p.heightCm,
-      }));
-    } else {
-      // Nhánh B: lấy packages từ form Bill.
-      packageInputs = data.packages.map((p) => ({
-        description: normOpt(p.description),
-        actualWeightKg: p.actualWeightKg,
-        lengthCm: p.lengthCm,
-        widthCm: p.widthCm,
-        heightCm: p.heightCm,
-      }));
-    }
+    // Bill packages LUÔN từ form (source of truth). pickupCode chỉ là
+    // reference text nếu sale có lệnh pickup từ trước.
+    const packageInputs = data.packages.map((p) => ({
+      description: normOpt(p.description),
+      actualWeightKg: p.actualWeightKg,
+      lengthCm: p.lengthCm,
+      widthCm: p.widthCm,
+      heightCm: p.heightCm,
+    }));
+    const linkedPickupCode = normOpt(data.pickupCode);
 
     // Cân quy đổi tính theo hệ số dịch vụ.
     const packageWeights = packageInputs.map((p) =>
@@ -386,68 +318,52 @@ export async function createOrder(
           notes: normOpt(data.notes),
           recipientId,
           assignedToUserId,
+          linkedPickupCode,
         },
         select: { id: true },
       });
 
-      // Pickup: branch theo có/không pickupCode.
-      if (existingPickupId) {
-        // Nhánh A: gắn pickup hiện có vào đơn + cập nhật cân quy đổi của kiện.
-        await tx.pickupRequest.update({
-          where: { id: existingPickupId },
-          data: { orderId: order.id },
-        });
-        for (let i = 0; i < existingPickupPackageIds.length; i++) {
-          await tx.package.update({
-            where: { id: existingPickupPackageIds[i] },
-            data: {
-              volumetricWeightKg: packageWeights[i].volumetricWeightKg,
-              chargeableWeightKg: packageWeights[i].chargeableWeightKg,
-            },
-          });
-        }
-      } else {
-        // Nhánh B: tạo PickupRequest stub với address/contact lấy từ customer
-        // + ghi packages từ form Bill.
-        const pkCount = await tx.pickupRequest.count({
-          where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
-        });
-        const pickupCodeNew = buildPickupCode(pkCount + 1, new Date());
-        const stub = await tx.pickupRequest.create({
-          data: {
-            code: pickupCodeNew,
-            createdById,
-            currentStatus: "PENDING",
-            pickupAddress: customer.address ?? "(chưa rõ)",
-            pickupContactName: customer.name,
-            pickupContactPhone: customer.phone,
-            orderId: order.id,
-            notes: "Tự tạo từ form Order — sale không có pickup riêng",
-          },
-          select: { id: true },
-        });
-        await tx.package.createMany({
-          data: packageInputs.map((p, i) => ({
-            pickupRequestId: stub.id,
-            description: p.description,
-            actualWeightKg: p.actualWeightKg,
-            lengthCm: p.lengthCm,
-            widthCm: p.widthCm,
-            heightCm: p.heightCm,
-            volumetricWeightKg: packageWeights[i].volumetricWeightKg,
-            chargeableWeightKg: packageWeights[i].chargeableWeightKg,
-          })),
-        });
-        await tx.pickupStatusLog.create({
-          data: {
-            pickupRequestId: stub.id,
-            fromStatus: null,
-            toStatus: "PENDING",
-            byUserId: createdById,
-            note: "Tự tạo lúc sale tạo đơn (không có pickup riêng)",
-          },
-        });
-      }
+      // PickupRequest stub LUÔN tạo (1-1 với Order) — chứa packages từ Bill.
+      const pkCount = await tx.pickupRequest.count({
+        where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+      });
+      const pickupCodeNew = buildPickupCode(pkCount + 1, new Date());
+      const stub = await tx.pickupRequest.create({
+        data: {
+          code: pickupCodeNew,
+          createdById,
+          currentStatus: "PENDING",
+          pickupAddress: customer.address ?? "(chưa rõ)",
+          pickupContactName: customer.name,
+          pickupContactPhone: customer.phone,
+          orderId: order.id,
+          notes: linkedPickupCode
+            ? "Sale có pickup riêng (ref: " + linkedPickupCode + ")"
+            : "Tự tạo từ form Order",
+        },
+        select: { id: true },
+      });
+      await tx.package.createMany({
+        data: packageInputs.map((p, i) => ({
+          pickupRequestId: stub.id,
+          description: p.description,
+          actualWeightKg: p.actualWeightKg,
+          lengthCm: p.lengthCm,
+          widthCm: p.widthCm,
+          heightCm: p.heightCm,
+          volumetricWeightKg: packageWeights[i].volumetricWeightKg,
+          chargeableWeightKg: packageWeights[i].chargeableWeightKg,
+        })),
+      });
+      await tx.pickupStatusLog.create({
+        data: {
+          pickupRequestId: stub.id,
+          fromStatus: null,
+          toStatus: "PENDING",
+          byUserId: createdById,
+          note: "Tự tạo lúc sale tạo đơn",
+        },
+      });
 
       if (extraCostRecords.length > 0) {
         await tx.orderExtraCost.createMany({

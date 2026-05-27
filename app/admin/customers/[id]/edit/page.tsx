@@ -54,6 +54,7 @@ export default async function EditCustomerPage({ params }: PageProps) {
               phone: customer.phone,
               email: customer.email,
               address: customer.address,
+              nationalId: customer.nationalId,
               isBusiness: customer.isBusiness,
               taxCode: customer.taxCode,
               notes: customer.notes,
