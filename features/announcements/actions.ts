@@ -138,7 +138,11 @@ export async function deleteAnnouncement(id: string): Promise<void> {
   revalidatePath("/admin/announcements");
 }
 
-/** Đánh dấu đã đọc cho user hiện tại (mọi role). Idempotent. */
+/**
+ * Đánh dấu đã đọc cho user hiện tại (mọi role). Idempotent.
+ * KHÔNG revalidate — phép gọi trong Server Component render an toàn.
+ * Layout `force-dynamic` sẽ tự tính lại badge ở lần navigation tiếp theo.
+ */
 export async function markAsRead(announcementId: string): Promise<void> {
   const actor = await getCurrentUser();
   if (!actor) return;
@@ -149,6 +153,4 @@ export async function markAsRead(announcementId: string): Promise<void> {
     create: { announcementId, userId: actor.id },
     update: {},
   });
-  revalidatePath("/admin/announcements");
-  revalidatePath(`/admin/announcements/${announcementId}`);
 }
