@@ -17,9 +17,11 @@ export interface SidebarProps {
   className?: string;
   onNavigate?: () => void;
   role?: UserRole;
+  /** Map href → badge count (0 hoặc không có = ẩn). */
+  badges?: Record<string, number>;
 }
 
-export function Sidebar({ className, onNavigate, role }: SidebarProps) {
+export function Sidebar({ className, onNavigate, role, badges }: SidebarProps) {
   const pathname = usePathname() ?? "";
   const sections = ADMIN_NAV.filter(
     (section) => !section.adminOnly || role === "ADMIN"
@@ -65,6 +67,7 @@ export function Sidebar({ className, onNavigate, role }: SidebarProps) {
                 {section.items.map((item) => {
                   const active = isActive(pathname, item.href);
                   const Icon = item.icon;
+                  const badge = badges?.[item.href] ?? 0;
                   return (
                     <li key={item.href}>
                       <Link
@@ -78,7 +81,12 @@ export function Sidebar({ className, onNavigate, role }: SidebarProps) {
                         )}
                       >
                         <Icon className="h-4 w-4" aria-hidden />
-                        <span className="truncate">{item.label}</span>
+                        <span className="flex-1 truncate">{item.label}</span>
+                        {badge > 0 ? (
+                          <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground">
+                            {badge > 99 ? "99+" : badge}
+                          </span>
+                        ) : null}
                       </Link>
                     </li>
                   );

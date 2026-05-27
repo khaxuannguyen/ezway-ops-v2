@@ -17,18 +17,23 @@ export interface AdminShellUser {
 export function AdminShell({
   children,
   user,
+  announcementUnread = 0,
 }: {
   children: React.ReactNode;
   user?: AdminShellUser | null;
+  announcementUnread?: number;
 }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const closeMobile = React.useCallback(() => setMobileOpen(false), []);
   const role = user?.role;
+  const badges: Record<string, number> = {
+    "/admin/announcements": announcementUnread,
+  };
 
   return (
     <div className="flex min-h-screen bg-muted/30">
       <div className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:z-30">
-        <Sidebar role={role} />
+        <Sidebar role={role} badges={badges} />
       </div>
 
       {mobileOpen ? (
@@ -39,7 +44,12 @@ export function AdminShell({
             aria-hidden
           />
           <div className="relative z-10 flex h-full w-72 max-w-[80%]">
-            <Sidebar className="w-full" onNavigate={closeMobile} role={role} />
+            <Sidebar
+              className="w-full"
+              onNavigate={closeMobile}
+              role={role}
+              badges={badges}
+            />
             <Button
               variant="ghost"
               size="icon"

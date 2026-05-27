@@ -170,6 +170,8 @@ model User {
   paymentsRecorded Payment[]         @relation("PaymentRecordedBy")
   ordersForwarded  Order[]           @relation("OrderForwardedBy")
   ordersAssigned   Order[]           @relation("OrderAssignedTo")
+  announcementsAuthored Announcement[]     @relation("AnnouncementAuthor")
+  announcementReads     AnnouncementRead[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -566,6 +568,41 @@ model Payment {
   @@index([orderId, paidAt])
   @@index([recordedById, paidAt])
   @@map("payments")
+}
+
+model Announcement {
+  id           String   @id @default(cuid())
+  title        String
+  body         String
+  isPinned     Boolean  @default(false)
+  /// Array role nào thấy được. Trống = mọi role thấy.
+  visibleToRoles UserRole[]
+
+  authorId  String
+  author    User      @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+
+  publishedAt DateTime  @default(now())
+  expiresAt   DateTime?
+  deletedAt   DateTime?
+
+  reads AnnouncementRead[]
+
+  @@index([publishedAt])
+  @@index([isPinned, publishedAt])
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt         DateTime     @default(now())
+
+  @@unique([announcementId, userId])
+  @@index([userId, readAt])
+  @@map("announcement_reads")
 }
 
 model AuditLog {
