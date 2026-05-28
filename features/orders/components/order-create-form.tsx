@@ -171,8 +171,29 @@ export function OrderCreateForm({
   const [selectedCustomerId, setSelectedCustomerId] = React.useState<string>(
     defaults?.customerId ?? ""
   );
+  const [isNewCustomerMode, setIsNewCustomerMode] = React.useState(false);
 
+  // Người gửi summary: lấy từ Customer chọn (cũ) hoặc từ form khách mới đang nhập.
+  const [newCustForm, setNewCustForm] = React.useState({
+    name: "",
+    phone: "",
+    address: "",
+    nationalId: "",
+  });
   const senderSummary = React.useMemo(() => {
+    if (isNewCustomerMode) {
+      const hasAny =
+        newCustForm.name.trim() ||
+        newCustForm.phone.trim() ||
+        newCustForm.address.trim();
+      if (!hasAny) return null;
+      return {
+        name: newCustForm.name.trim() || "(chưa nhập)",
+        phone: newCustForm.phone.trim() || "(chưa nhập)",
+        address: newCustForm.address.trim() || "",
+        nationalId: newCustForm.nationalId.trim() || null,
+      };
+    }
     if (!selectedCustomerId) return null;
     const c = customers.find((cc) => cc.id === selectedCustomerId);
     if (!c) return null;
@@ -182,7 +203,7 @@ export function OrderCreateForm({
       address: c.address,
       nationalId: c.nationalId,
     };
-  }, [selectedCustomerId, customers]);
+  }, [isNewCustomerMode, newCustForm, selectedCustomerId, customers]);
 
   const err = (n: string) => (state ? fieldError(state, n) : undefined);
 
@@ -241,24 +262,57 @@ export function OrderCreateForm({
 
       <FormSection
         title={"Khách hàng & dịch vụ"}
-        description={"Chọn khách hàng và dịch vụ vận chuyển."}
+        description={"Chọn khách hàng cũ hoặc tạo khách mới (gửi lần đầu)."}
       >
+        {/* Toggle: khách cũ vs khách mới */}
+        <div className="flex flex-wrap gap-3 rounded-md border border-border bg-muted/30 p-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="_customerMode"
+              checked={!isNewCustomerMode}
+              onChange={() => setIsNewCustomerMode(false)}
+              className="h-4 w-4"
+            />
+            {"Khách hàng đã có"}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="_customerMode"
+              checked={isNewCustomerMode}
+              onChange={() => setIsNewCustomerMode(true)}
+              className="h-4 w-4"
+            />
+            {"Khách mới (gửi lần đầu)"}
+          </label>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label={"Khách hàng"} htmlFor="customerId" required error={err("customerId")}>
-            <Select
-              id="customerId"
-              name="customerId"
-              value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
+          {!isNewCustomerMode ? (
+            <Field
+              label={"Khách hàng"}
+              htmlFor="customerId"
+              required
+              error={err("customerId")}
             >
-              <option value="">--</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.code + " - " + c.name + " (" + c.phone + ")"}
-                </option>
-              ))}
-            </Select>
-          </Field>
+              <Select
+                id="customerId"
+                name="customerId"
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+              >
+                <option value="">--</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code + " - " + c.name + " (" + c.phone + ")"}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <input type="hidden" name="customerId" value="" />
+          )}
           <Field label={"Dịch vụ"} htmlFor="serviceId" required error={err("serviceId")}>
             <Select id="serviceId" name="serviceId" defaultValue={defaults?.serviceId ?? ""}>
               <option value="">--</option>
@@ -302,6 +356,90 @@ export function OrderCreateForm({
             )}
           </Field>
         </div>
+
+        {isNewCustomerMode ? (
+          <div className="space-y-3 rounded-md border border-primary/30 bg-primary/5 p-4">
+            <p className="text-sm font-medium">
+              {"Thông tin khách hàng mới (sẽ lưu vào module Khách hàng)"}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                label={"Họ tên"}
+                htmlFor="newCustomer.name"
+                required
+                error={err("newCustomer.name")}
+              >
+                <Input
+                  id="newCustomer.name"
+                  name="newCustomer.name"
+                  value={newCustForm.name}
+                  onChange={(e) =>
+                    setNewCustForm((p) => ({ ...p, name: e.target.value }))
+                  }
+                  placeholder="VD: Nguyễn Văn A"
+                />
+              </Field>
+              <Field
+                label={"Số điện thoại"}
+                htmlFor="newCustomer.phone"
+                required
+                error={err("newCustomer.phone")}
+              >
+                <Input
+                  id="newCustomer.phone"
+                  name="newCustomer.phone"
+                  value={newCustForm.phone}
+                  onChange={(e) =>
+                    setNewCustForm((p) => ({ ...p, phone: e.target.value }))
+                  }
+                  placeholder="0123456789"
+                />
+              </Field>
+              <Field label={"Email (tuỳ chọn)"} htmlFor="newCustomer.email">
+                <Input
+                  id="newCustomer.email"
+                  name="newCustomer.email"
+                  type="email"
+                  placeholder="khach@example.com"
+                />
+              </Field>
+              <Field
+                label={"CCCD (tuỳ chọn)"}
+                htmlFor="newCustomer.nationalId"
+                description={"Cần cho khai báo hải quan khi gửi quốc tế."}
+              >
+                <Input
+                  id="newCustomer.nationalId"
+                  name="newCustomer.nationalId"
+                  value={newCustForm.nationalId}
+                  onChange={(e) =>
+                    setNewCustForm((p) => ({
+                      ...p,
+                      nationalId: e.target.value,
+                    }))
+                  }
+                />
+              </Field>
+            </div>
+            <Field
+              label={"Địa chỉ"}
+              htmlFor="newCustomer.address"
+              required
+              error={err("newCustomer.address")}
+            >
+              <Textarea
+                id="newCustomer.address"
+                name="newCustomer.address"
+                rows={2}
+                value={newCustForm.address}
+                onChange={(e) =>
+                  setNewCustForm((p) => ({ ...p, address: e.target.value }))
+                }
+                placeholder="Số nhà, đường, phường, quận, TP..."
+              />
+            </Field>
+          </div>
+        ) : null}
       </FormSection>
 
       <FormSection title={"Chi phí phát sinh"} description={"Phí thùng carton, phụ thu hàng khó, và các chi phí khác. Có thể bỏ trống."}>

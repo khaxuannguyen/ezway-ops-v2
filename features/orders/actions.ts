@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { buildOrderCode, buildPickupCode } from "@/lib/codegen";
+import { buildCustomerCode, buildOrderCode, buildPickupCode } from "@/lib/codegen";
 import { getCurrentUser, requireRole, type CurrentUser } from "@/lib/auth";
 import {
   calculateOrderPackageTotals,
@@ -195,21 +195,12 @@ export async function createOrder(
   const data = parsed.data;
 
   try {
-    const [service, customer] = await Promise.all([
-      prisma.shippingService.findUnique({
-        where: { id: data.serviceId },
-        select: { id: true, volumetricDivisor: true },
-      }),
-      prisma.customer.findUnique({
-        where: { id: data.customerId },
-        select: { id: true, name: true, phone: true, address: true },
-      }),
-    ]);
+    const service = await prisma.shippingService.findUnique({
+      where: { id: data.serviceId },
+      select: { id: true, volumetricDivisor: true },
+    });
     if (!service) {
       return { ok: false, fieldErrors: { serviceId: ["Vui lòng chọn dịch vụ."] } };
-    }
-    if (!customer) {
-      return { ok: false, fieldErrors: { customerId: ["Vui lòng chọn khách hàng."] } };
     }
 
     const actor = await getCurrentUser();
@@ -217,6 +208,75 @@ export async function createOrder(
       return {
         ok: false,
         formError: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+      };
+    }
+
+    // Resolve customer: chọn khách cũ (customerId) hoặc tạo mới (newCustomer).
+    const hasExistingCustomer =
+      !!(data.customerId && data.customerId.trim() !== "");
+    const nc = data.newCustomer;
+    const hasNewCustomer =
+      !hasExistingCustomer &&
+      !!nc &&
+      !!(nc.name?.trim() && nc.phone?.trim() && nc.address?.trim());
+
+    let customer: {
+      id: string;
+      name: string;
+      phone: string;
+      address: string | null;
+    };
+
+    if (hasExistingCustomer) {
+      const existing = await prisma.customer.findUnique({
+        where: { id: data.customerId! },
+        select: { id: true, name: true, phone: true, address: true },
+      });
+      if (!existing) {
+        return {
+          ok: false,
+          fieldErrors: { customerId: ["Khách hàng không tồn tại."] },
+        };
+      }
+      customer = existing;
+    } else if (hasNewCustomer && nc) {
+      // Chặn trùng SĐT — chống đá khách.
+      const dup = await prisma.customer.findFirst({
+        where: { phone: nc.phone!.trim(), deletedAt: null },
+        select: { id: true, code: true, name: true },
+      });
+      if (dup) {
+        return {
+          ok: false,
+          fieldErrors: {
+            "newCustomer.phone": [
+              `SĐT đã tồn tại (${dup.code} - ${dup.name}). Chọn khách cũ thay vì tạo mới.`,
+            ],
+          },
+        };
+      }
+      const count = await prisma.customer.count();
+      const code = buildCustomerCode(count + 1);
+      const created = await prisma.customer.create({
+        data: {
+          code,
+          name: nc.name!.trim(),
+          phone: nc.phone!.trim(),
+          email: normOpt(nc.email),
+          address: nc.address!.trim(),
+          nationalId: normOpt(nc.nationalId),
+          // SALE tạo → tự gán làm sale phụ trách (anti-poaching).
+          salesUserId: actor.role === "SALE" ? actor.id : null,
+        },
+        select: { id: true, name: true, phone: true, address: true },
+      });
+      customer = created;
+    } else {
+      return {
+        ok: false,
+        fieldErrors: {
+          customerId: ["Vui lòng chọn khách hàng hoặc tạo khách mới."],
+        },
       };
     }
 

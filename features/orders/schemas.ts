@@ -47,6 +47,20 @@ export const recipientBlockSchema = z
 
 export type RecipientBlockInput = z.infer<typeof recipientBlockSchema>;
 
+/**
+ * Block tạo khách hàng mới (khi sale chọn "Tạo khách mới" trong form Order).
+ * Backend sẽ tạo Customer record trước khi tạo Order.
+ */
+export const newCustomerBlockSchema = z.object({
+  name: z.string().trim().optional().or(z.literal("")),
+  phone: z.string().trim().optional().or(z.literal("")),
+  email: z.string().trim().optional().or(z.literal("")),
+  address: z.string().trim().optional().or(z.literal("")),
+  nationalId: z.string().trim().optional().or(z.literal("")),
+});
+
+export type NewCustomerBlockInput = z.infer<typeof newCustomerBlockSchema>;
+
 /** 1 kiện hàng nhập trong form sale (khi không có pickup code). */
 export const orderPackageRowSchema = z.object({
   description: z.string().trim().optional().or(z.literal("")),
@@ -174,26 +188,74 @@ export type SupplyUsedRowInput = z.infer<typeof supplyUsedRowSchema>;
 /**
  * Tạo Order — Bill packages LUÔN bắt buộc (≥1 kiện). pickupCode chỉ là
  * reference text optional, KHÔNG ảnh hưởng đến packages.
+ *
+ * Khách hàng: hoặc chọn khách cũ (customerId), hoặc tạo mới (newCustomer).
+ * Bắt buộc 1 trong 2 — sale chưa có khách lần đầu thì điền inline.
  */
-export const orderCreateInputSchema = z.object({
-  customerId: z.string().min(1, "Vui lòng chọn khách hàng."),
-  serviceId: z.string().min(1, "Vui lòng chọn dịch vụ."),
-  salesUserId: z.string().trim().optional().or(z.literal("")),
-  pickupCode: z.string().trim().optional().or(z.literal("")),
-  customerFeeVnd: z
-    .coerce.number({ message: "Cước thu khách không hợp lệ." })
-    .int("Cước thu khách không hợp lệ.")
-    .nonnegative("Cước thu khách không hợp lệ."),
-  status: z.nativeEnum(OrderStatus).default(OrderStatus.DRAFT),
-  pickupMethod: z.nativeEnum(PickupMethod).default(PickupMethod.NONE),
-  notes: z.string().trim().optional().or(z.literal("")),
-  extraCosts: z.array(extraCostRowSchema).default([]),
-  suppliesUsed: z.array(supplyUsedRowSchema).default([]),
-  ...saleExtraBlockShape,
-  packages: z
-    .array(orderPackageRowSchema)
-    .min(1, "Cần ít nhất 1 kiện hàng."),
-});
+export const orderCreateInputSchema = z
+  .object({
+    customerId: z.string().trim().optional().or(z.literal("")),
+    newCustomer: newCustomerBlockSchema.optional(),
+    serviceId: z.string().min(1, "Vui lòng chọn dịch vụ."),
+    salesUserId: z.string().trim().optional().or(z.literal("")),
+    pickupCode: z.string().trim().optional().or(z.literal("")),
+    customerFeeVnd: z
+      .coerce.number({ message: "Cước thu khách không hợp lệ." })
+      .int("Cước thu khách không hợp lệ.")
+      .nonnegative("Cước thu khách không hợp lệ."),
+    status: z.nativeEnum(OrderStatus).default(OrderStatus.DRAFT),
+    pickupMethod: z.nativeEnum(PickupMethod).default(PickupMethod.NONE),
+    notes: z.string().trim().optional().or(z.literal("")),
+    extraCosts: z.array(extraCostRowSchema).default([]),
+    suppliesUsed: z.array(supplyUsedRowSchema).default([]),
+    ...saleExtraBlockShape,
+    packages: z
+      .array(orderPackageRowSchema)
+      .min(1, "Cần ít nhất 1 kiện hàng."),
+  })
+  .superRefine((data, ctx) => {
+    const hasExisting = !!(data.customerId && data.customerId.trim() !== "");
+    const nc = data.newCustomer;
+    const hasNew =
+      !!nc &&
+      (nc.name?.trim() ||
+        nc.phone?.trim() ||
+        nc.address?.trim());
+    if (!hasExisting && !hasNew) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Vui lòng chọn khách hàng hoặc tạo khách mới.",
+        path: ["customerId"],
+      });
+      return;
+    }
+    if (hasNew && !hasExisting) {
+      // Validate fields cốt lõi cho khách mới
+      const required: Array<[keyof NonNullable<typeof nc>, string]> = [
+        ["name", "Vui lòng nhập tên khách hàng."],
+        ["phone", "Vui lòng nhập số điện thoại."],
+        ["address", "Vui lòng nhập địa chỉ."],
+      ];
+      for (const [field, msg] of required) {
+        const v = (nc![field] ?? "").toString().trim();
+        if (v === "") {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: msg,
+            path: ["newCustomer", field],
+          });
+        }
+      }
+      const phone = (nc!.phone ?? "").toString().trim();
+      if (phone && !phoneRegex.test(phone)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Số điện thoại không hợp lệ.",
+          path: ["newCustomer", "phone"],
+        });
+      }
+    }
+  });
 
 export type OrderCreateInput = z.infer<typeof orderCreateInputSchema>;
 
@@ -235,6 +297,13 @@ export function parseOrderCreateFormData(fd: FormData): Record<string, unknown> 
 
   return {
     customerId: (fd.get("customerId") ?? "").toString(),
+    newCustomer: {
+      name: (fd.get("newCustomer.name") ?? "").toString(),
+      phone: (fd.get("newCustomer.phone") ?? "").toString(),
+      email: (fd.get("newCustomer.email") ?? "").toString(),
+      address: (fd.get("newCustomer.address") ?? "").toString(),
+      nationalId: (fd.get("newCustomer.nationalId") ?? "").toString(),
+    },
     serviceId: (fd.get("serviceId") ?? "").toString(),
     salesUserId: (fd.get("salesUserId") ?? "").toString(),
     pickupCode: (fd.get("pickupCode") ?? "").toString(),
