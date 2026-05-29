@@ -49,6 +49,8 @@ export interface ServiceOption {
   transportType: ShippingTransportType;
   destinationCode: string;
   destinationName: string;
+  /** Hệ số cân quy đổi: dim weight = (D × R × C) / volumetricDivisor (cm³ → kg). */
+  volumetricDivisor: number;
 }
 export interface CostItemOption {
   id: string;
@@ -171,6 +173,14 @@ export function OrderCreateForm({
   const [selectedCustomerId, setSelectedCustomerId] = React.useState<string>(
     defaults?.customerId ?? ""
   );
+  const [selectedServiceId, setSelectedServiceId] = React.useState<string>(
+    defaults?.serviceId ?? ""
+  );
+  const selectedService = React.useMemo(
+    () => services.find((s) => s.id === selectedServiceId),
+    [services, selectedServiceId]
+  );
+  const volumetricDivisor = selectedService?.volumetricDivisor ?? 5000;
   const [isNewCustomerMode, setIsNewCustomerMode] = React.useState(false);
 
   // Người gửi summary: lấy từ Customer chọn (cũ) hoặc từ form khách mới đang nhập.
@@ -313,8 +323,23 @@ export function OrderCreateForm({
           ) : (
             <input type="hidden" name="customerId" value="" />
           )}
-          <Field label={"Dịch vụ"} htmlFor="serviceId" required error={err("serviceId")}>
-            <Select id="serviceId" name="serviceId" defaultValue={defaults?.serviceId ?? ""}>
+          <Field
+            label={"Dịch vụ"}
+            htmlFor="serviceId"
+            required
+            error={err("serviceId")}
+            description={
+              selectedService
+                ? `Hệ số cân quy đổi: D × R × C / ${volumetricDivisor}`
+                : "Chọn dịch vụ để tính cân quy đổi tự động."
+            }
+          >
+            <Select
+              id="serviceId"
+              name="serviceId"
+              value={selectedServiceId}
+              onChange={(e) => setSelectedServiceId(e.target.value)}
+            >
               <option value="">--</option>
               {services.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -658,6 +683,7 @@ export function OrderCreateForm({
           packages: err("packages"),
         }}
         showPackages={true}
+        volumetricDivisor={volumetricDivisor}
       />
 
       <div className="flex items-center justify-end gap-2 pt-6">

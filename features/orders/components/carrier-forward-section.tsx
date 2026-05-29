@@ -53,6 +53,11 @@ export interface CarrierForwardSectionProps {
   /** Show bill packages repeater + pickup section. False khi form Update. */
   showPackages?: boolean;
   errors?: Record<string, string | undefined>;
+  /**
+   * Hệ số cân quy đổi của Service (cm³ → kg). Mặc định 5000 nếu chưa chọn dịch vụ.
+   * Cân tính cước = max(cân thực, D×R×C / volumetricDivisor).
+   */
+  volumetricDivisor?: number;
 }
 
 function uid(): string {
@@ -81,6 +86,25 @@ function emptyPkgRow(): PkgRow {
   };
 }
 
+/** Tính cân thể tích + cân tính cước cho 1 row. Số rỗng/sai → 0. */
+function computeDimWeight(
+  row: { actualWeightKg: string; lengthCm: string; widthCm: string; heightCm: string },
+  divisor: number
+): { actual: number; volumetric: number; chargeable: number } {
+  const actual = Number(row.actualWeightKg) || 0;
+  const l = Number(row.lengthCm) || 0;
+  const w = Number(row.widthCm) || 0;
+  const h = Number(row.heightCm) || 0;
+  const volumetric = divisor > 0 ? (l * w * h) / divisor : 0;
+  const chargeable = Math.max(actual, volumetric);
+  return { actual, volumetric, chargeable };
+}
+
+const fmtKg = (n: number): string =>
+  n > 0
+    ? n.toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " kg"
+    : "—";
+
 export function CarrierForwardSection({
   sender,
   recipientOptions,
@@ -88,6 +112,7 @@ export function CarrierForwardSection({
   defaults,
   showPackages = true,
   errors,
+  volumetricDivisor = 5000,
 }: CarrierForwardSectionProps) {
   const [selectedRecipientId, setSelectedRecipientId] = React.useState<string>(
     defaults?.recipient?.recipientId ?? ""
@@ -297,7 +322,7 @@ export function CarrierForwardSection({
           <FormSection
             title={"Kiện hàng (Bill)"}
             description={
-              "Mỗi dòng = 1 kiện. Mô tả nội dung + kích thước + cân nặng. Bắt buộc kể cả khi có pickup từ trước."
+              `Cân tính cước = max(cân thực, D×R×C / ${volumetricDivisor}). Hệ thống chọn số lớn hơn để áp bậc giá.`
             }
           >
             <div className="space-y-2">
@@ -315,7 +340,7 @@ export function CarrierForwardSection({
               {pkgRows.map((row, i) => (
                 <div
                   key={row.key}
-                  className="grid gap-2 rounded-md border border-border bg-muted/20 p-3 sm:grid-cols-[1.5fr_repeat(4,90px)_40px]"
+                  className="grid gap-2 rounded-md border border-border bg-muted/20 p-3 sm:grid-cols-[1.4fr_repeat(4,80px)_repeat(2,100px)_40px]"
                 >
                   <Field
                     label={i === 0 ? "Mô tả hàng" : ""}
@@ -372,7 +397,7 @@ export function CarrierForwardSection({
                     />
                   </Field>
                   <Field
-                    label={i === 0 ? "Cân (kg)" : ""}
+                    label={i === 0 ? "Cân thực (kg)" : ""}
                     htmlFor={`orderPkg[${i}][actualWeightKg]`}
                   >
                     <Input
@@ -387,6 +412,44 @@ export function CarrierForwardSection({
                       }
                     />
                   </Field>
+                  {(() => {
+                    const w = computeDimWeight(row, volumetricDivisor);
+                    const useVolumetric =
+                      w.volumetric > w.actual && w.volumetric > 0;
+                    return (
+                      <>
+                        <div className={i === 0 ? "self-end" : ""}>
+                          {i === 0 ? (
+                            <p className="mb-1 text-xs font-medium text-muted-foreground">
+                              {"Cân thể tích"}
+                            </p>
+                          ) : null}
+                          <div
+                            className={
+                              "flex h-9 items-center rounded-md border border-input bg-muted/40 px-2.5 text-xs " +
+                              (useVolumetric ? "font-semibold text-foreground" : "text-muted-foreground")
+                            }
+                            aria-label={"Cân quy đổi"}
+                          >
+                            {fmtKg(w.volumetric)}
+                          </div>
+                        </div>
+                        <div className={i === 0 ? "self-end" : ""}>
+                          {i === 0 ? (
+                            <p className="mb-1 text-xs font-medium text-muted-foreground">
+                              {"Tính cước"}
+                            </p>
+                          ) : null}
+                          <div
+                            className="flex h-9 items-center rounded-md border border-primary/30 bg-primary/5 px-2.5 text-xs font-semibold text-primary"
+                            aria-label={"Cân tính cước"}
+                          >
+                            {fmtKg(w.chargeable)}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                   <div className={i === 0 ? "self-end" : ""}>
                     <Button
                       type="button"
@@ -401,6 +464,54 @@ export function CarrierForwardSection({
                   </div>
                 </div>
               ))}
+
+              {(() => {
+                const totals = pkgRows.reduce(
+                  (acc, row) => {
+                    const w = computeDimWeight(row, volumetricDivisor);
+                    acc.actual += w.actual;
+                    acc.volumetric += w.volumetric;
+                    acc.chargeable += w.chargeable;
+                    return acc;
+                  },
+                  { actual: 0, volumetric: 0, chargeable: 0 }
+                );
+                if (totals.chargeable <= 0) return null;
+                const usingVolumetric = totals.volumetric > totals.actual;
+                return (
+                  <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+                    <span>
+                      {"Tổng cân thực: "}
+                      <span className="font-semibold">{fmtKg(totals.actual)}</span>
+                    </span>
+                    <span>
+                      {"Tổng cân thể tích: "}
+                      <span
+                        className={
+                          usingVolumetric
+                            ? "font-semibold text-foreground"
+                            : "text-muted-foreground"
+                        }
+                      >
+                        {fmtKg(totals.volumetric)}
+                      </span>
+                    </span>
+                    <span className="rounded-md bg-primary/10 px-2 py-1 text-primary">
+                      {"Cân tính cước: "}
+                      <span className="font-bold">{fmtKg(totals.chargeable)}</span>
+                      {usingVolumetric ? (
+                        <span className="ml-1 text-[10px] text-primary/70">
+                          {"(theo thể tích)"}
+                        </span>
+                      ) : (
+                        <span className="ml-1 text-[10px] text-primary/70">
+                          {"(theo cân thực)"}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </FormSection>
         </>
