@@ -1,9 +1,11 @@
 # EZWAY Ops v2 — Project Roadmap
 
 > **NGUỒN SỰ THẬT DUY NHẤT về tiến độ.** Mỗi phiên làm việc: đọc file này trước.
-> Cập nhật cuối: 2026-05-26 (Forwarder Processing Phase A: queue xử lý carrier +
-> Copy Helper click-to-paste, cắt 50-70% time admin copy đơn EZWAY → Kango).
-> Trước đó: dọn nợ kỹ thuật, pickup status history, Payment Phase 1, Excel
+> Cập nhật cuối: 2026-05-29 (Form sale Order theo mẫu khai hàng + Module thông
+> báo nội bộ + Inline tạo khách mới khi sale gửi lần đầu). E2E smoke: 17/17
+> backend PASS + 14/14 routes load OK + build clean.
+> Trước đó (2026-05-26): Forwarder Processing Phase A (Copy Helper Kango/KSN/Go).
+> Trước nữa: dọn nợ kỹ thuật, pickup status history, Payment Phase 1, Excel
 > template payroll. Sepay Phase 2 đợi TK bank; Tracking + Accounting đã có plan.
 > (Các file `plans/*.md` đã LỖI THỜI — bỏ qua, không phản ánh thực tế.)
 
@@ -27,7 +29,8 @@
 | Bảng giá chi phí | `/admin/cost-rates` | Scale cân cố định, import CSV/paste, sửa-tất-cả |
 | Tài xế | `/admin/drivers` | Tạo User role DRIVER kèm theo |
 | Lệnh lấy hàng | `/admin/pickups` | Tạo trước (mã `PK-...`), nhập kiện hàng; gán tài xế + đổi trạng thái; **log đầy đủ lịch sử trạng thái** (PickupStatusLog) + timeline UI + ghi chú khi đổi |
-| Đẩy carrier (Forwarder Processing Phase A) | `/admin/processing` + `/admin/orders/[id]/forward` | Queue đơn pending; Copy Helper modal với click-to-copy từng cụm field (Sender / Receiver / Order info / Packages / Invoice) — paste sang portal Kango/KSN/Go; admin nhập tracking carrier trả + đánh dấu "đã đẩy" |
+| Đẩy carrier (Forwarder Processing Phase A) | `/admin/processing` + `/admin/orders/[id]/forward` | Queue đơn pending; Copy Helper modal với click-to-copy từng cụm field (Sender / Receiver / Order info / Packages / Invoice) — paste sang portal Kango/KSN/Go; admin nhập tracking carrier trả + đánh dấu "đã đẩy". **CCCD ở Sender (Customer VN), Recipient chỉ tên/SĐT/địa chỉ gộp.** Bill packages LUÔN hiển thị trong form (kể cả khi có pickupCode tham chiếu) |
+| Thông báo nội bộ | `/admin/announcements` | List/detail/CRUD (kiểu Kango). Pinned đứng trước, badge "Mới" cho unread. ADMIN tạo/sửa/pin/xoá; mọi role xem theo `visibleToRoles[]`. `expiresAt` ẩn TB hết hạn. Sidebar có unread badge realtime (layout `force-dynamic`). `markAsRead` idempotent qua AnnouncementRead (KHÔNG revalidate trong render) |
 | Kho vật tư | `/admin/supplies` | Nhập/Xuất/Kiểm kê + lịch sử |
 | Chi phí thành lập | `/admin/startup-expenses` | Tổng hợp + tự gợi ý nhóm theo từ khóa |
 | Tài khoản | `/admin/users` | CRUD tài khoản, gán role, đặt/reset mật khẩu (chỉ ADMIN) |
@@ -94,7 +97,20 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
 - ADMIN có nút "Bỏ đánh dấu" để revert khi cần (race condition guard).
 - Phase B (defer): browser automation, multi-carrier custom layouts.
 
-**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`, `add_sale_role_and_password`, `add_order_sales_user`, `add_google_auth_employee_profile`, `pickup_first`, `pickup_created_by`, `customer_sales_owner`, `add_payment_ar`, `stock_refund_marker`, `add_forwarder_processing`
+**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`, `add_sale_role_and_password`, `add_order_sales_user`, `add_google_auth_employee_profile`, `pickup_first`, `pickup_created_by`, `customer_sales_owner`, `add_payment_ar`, `stock_refund_marker`, `add_forwarder_processing`, `simplify_recipient_assignee`, `fix_cccd_pickup_ref`, `add_announcements` (17 tổng)
+
+**Form Order sale (mẫu khai hàng):**
+- Sale điền theo "FORM KHAI HÀNG MẪU" — đơn giản hoá, bỏ Phase A invoice items.
+- Khách hàng: chọn khách cũ (filter theo SALE) **HOẶC** "Khách mới (gửi lần đầu)" inline
+  — backend tạo Customer trước (auto code `CUS-xxxx`, salesUserId = SALE hiện tại
+  nếu role SALE, chặn dup phone). Sau đó tạo Order + PickupRequest stub.
+- Sender auto-fill từ Customer (tên, SĐT, **CCCD**, địa chỉ).
+- Recipient gộp 1 field address; structured fields (country/state/city/postal/addr1-3)
+  giữ trong DB nullable để ADMIN tách sau khi paste.
+- Người phụ trách = `Order.assignedToUserId` (STAFF/DRIVER) — SALE tự điền tên OPS
+  để cty tính hoa hồng người xử lý.
+- Pickup checkbox + `linkedPickupCode` (reference text only) — Bill LUÔN hiển thị
+  bất kể tick hay không. PickupRequest stub luôn được tạo từ bill trong form.
 
 **Phân quyền URL (cứng theo role, không chỉ ẩn menu):**
 - ADMIN-only: `/admin/sales`, `/admin/users`, `/admin/services`, `/admin/cost-items`,
@@ -124,6 +140,11 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
   reset hộ. Đây là quyết định có chủ đích (xem `docs/profile-google-auth-plan.md`).
 - **Lỗ hổng kinh doanh:** chưa có UI ghi nhận Thanh toán/công nợ (model `Payment` có
   sẵn). Doanh thu Sales Portal đang là tiền BÁO GIÁ, chưa phải tiền THỰC THU.
+- **Chống đá khách:** Customer.phone unique app-level (KHÔNG DB unique vì soft-delete).
+  Inline tạo khách mới trong form Order cũng áp dụng dup-phone block (cùng action).
+- Next.js 16 + Turbopack: `revalidatePath` **KHÔNG được phép gọi trong render** của
+  Server Component → dùng layout `force-dynamic` cho route cần re-compute (đã áp dụng
+  cho announcement badge sidebar).
 
 ## Quy ước làm việc
 - Mỗi cuối phiên: cập nhật file này (đánh dấu ✅ việc xong, thêm việc mới).
