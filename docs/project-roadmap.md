@@ -4,8 +4,12 @@
 > Cập nhật cuối: 2026-05-29 (Form sale Order theo mẫu khai hàng + Module thông
 > báo nội bộ + Inline tạo khách mới khi sale gửi lần đầu). E2E smoke: 17/17
 > backend PASS + 14/14 routes load OK + build clean.
-> **Tin mới (2026-05-29):** đã có STK ngân hàng công ty + chữ ký số + HDDT →
-> Sepay Phase 2 và HDDT integration KHÔNG còn bị block, sẵn sàng triển khai.
+> **Tin mới (2026-05-29):** đã có STK ngân hàng công ty + chữ ký số + HDDT.
+> **HDDT integration** sẵn sàng triển khai (ưu tiên #1 — mở khoá khách B2B).
+> **Sepay Phase 2 bị chặn** vì Sepay Open Banking không support Techcombank
+> (chỉ có 11 bank: VCB, Sacombank, TPBank, VPBank, VietinBank, ACB, BIDV, MBBank,
+> OCB, KienLongBank, MSB). Tạm hoãn — nếu cần auto-reconcile sau, phương án là
+> mở thêm TK ở 1 bank trong list.
 > Trước đó (2026-05-26): Forwarder Processing Phase A (Copy Helper Kango/KSN/Go).
 > Trước nữa: dọn nợ kỹ thuật, pickup status history, Payment Phase 1, Excel
 > template payroll. Tracking + Accounting đã có plan.
@@ -122,12 +126,16 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
 
 ## ⬜ Chưa làm / để sau
 
-### Ưu tiên CAO (vừa mở khoá 2026-05-29)
-- [ ] **Sepay Phase 2** — webhook auto-reconcile thanh toán cho `Order.paidVnd`
-      (STK ngân hàng đã sẵn sàng). Cắt việc admin nhập payment tay. Có thể kèm
-      1 payment-nhiều-đơn (B2B), aging report, hoa hồng tính trên tiền THỰC THU.
+### Ưu tiên CAO
 - [ ] **HDDT integration** — xuất hoá đơn điện tử từ Order detail (chữ ký số +
       HDDT đã mua). Cần chọn provider (Viettel/VNPT/MISA/EasyInvoice…) → SDK/API.
+      **Việc tiếp theo.**
+
+### Tạm hoãn
+- [ ] **Sepay Phase 2** — auto-reconcile chuyển khoản. Bị chặn vì Sepay Open
+      Banking không support Techcombank (chỉ 11 bank: VCB/Sacombank/TPBank/
+      VPBank/VietinBank/ACB/BIDV/MBBank/OCB/KienLongBank/MSB). Tạm thời nhập
+      payment tay. Bật lại khi user mở thêm TK ở 1 bank trong list trên.
 
 ### Ưu tiên trung bình
 - [ ] **Driver portal** `/driver/*` — tài xế xem lệnh lấy hàng được gán, đổi
