@@ -4,9 +4,11 @@
 > Cập nhật cuối: 2026-05-29 (Form sale Order theo mẫu khai hàng + Module thông
 > báo nội bộ + Inline tạo khách mới khi sale gửi lần đầu). E2E smoke: 17/17
 > backend PASS + 14/14 routes load OK + build clean.
+> **Tin mới (2026-05-29):** đã có STK ngân hàng công ty + chữ ký số + HDDT →
+> Sepay Phase 2 và HDDT integration KHÔNG còn bị block, sẵn sàng triển khai.
 > Trước đó (2026-05-26): Forwarder Processing Phase A (Copy Helper Kango/KSN/Go).
 > Trước nữa: dọn nợ kỹ thuật, pickup status history, Payment Phase 1, Excel
-> template payroll. Sepay Phase 2 đợi TK bank; Tracking + Accounting đã có plan.
+> template payroll. Tracking + Accounting đã có plan.
 > (Các file `plans/*.md` đã LỖI THỜI — bỏ qua, không phản ánh thực tế.)
 
 ## Khởi động mỗi ngày
@@ -120,14 +122,20 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
 
 ## ⬜ Chưa làm / để sau
 
-- [ ] **Driver portal** `/driver/*` — VIỆC TIẾP THEO.
+### Ưu tiên CAO (vừa mở khoá 2026-05-29)
+- [ ] **Sepay Phase 2** — webhook auto-reconcile thanh toán cho `Order.paidVnd`
+      (STK ngân hàng đã sẵn sàng). Cắt việc admin nhập payment tay. Có thể kèm
+      1 payment-nhiều-đơn (B2B), aging report, hoa hồng tính trên tiền THỰC THU.
+- [ ] **HDDT integration** — xuất hoá đơn điện tử từ Order detail (chữ ký số +
+      HDDT đã mua). Cần chọn provider (Viettel/VNPT/MISA/EasyInvoice…) → SDK/API.
+
+### Ưu tiên trung bình
+- [ ] **Driver portal** `/driver/*` — tài xế xem lệnh lấy hàng được gán, đổi
+      trạng thái, upload ảnh.
 - [ ] Test tự động (Playwright / Vitest) — chưa setup.
 - [ ] Ảnh lệnh lấy hàng (PickupPhoto) — chưa làm. Lịch sử trạng thái đã làm xong.
 - [ ] Báo cáo tiêu hao vật tư theo kỳ (tháng/quý).
 - [ ] Sales: target/KPI theo sale (tuỳ chọn về sau).
-- [ ] **Payment Phase 2:** tích hợp Sepay/ngân hàng webhook auto-reconcile, 1
-      payment cho nhiều đơn (B2B), in phiếu thu PDF, aging report (đơn quá hạn),
-      hoa hồng tự động trên tiền đã thu, refund flow riêng.
 
 ## ⚠️ Nợ kỹ thuật / lưu ý
 - **Git:** đã commit + push lên GitHub (`github.com/khaxuannguyen/ezway-ops-v2`, nhánh `master`). Cuối mỗi phiên nhớ commit + push.
@@ -138,8 +146,9 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
 - `.env` có ô `GOOGLE_CLIENT_ID/SECRET` (đang trống) — điền để bật đăng nhập Google.
 - Không làm "quên mật khẩu" qua email: dùng Google login (không mật khẩu) hoặc admin
   reset hộ. Đây là quyết định có chủ đích (xem `docs/profile-google-auth-plan.md`).
-- **Lỗ hổng kinh doanh:** chưa có UI ghi nhận Thanh toán/công nợ (model `Payment` có
-  sẵn). Doanh thu Sales Portal đang là tiền BÁO GIÁ, chưa phải tiền THỰC THU.
+- **Lỗ hổng kinh doanh (đã có UI Payment Phase 1 nhập tay):** thiếu auto-reconcile
+  qua webhook ngân hàng → Sepay Phase 2 là việc kế tiếp khi sẵn sàng. Sau khi có
+  Phase 2: doanh thu Sales Portal mới là tiền THỰC THU đúng nghĩa.
 - **Chống đá khách:** Customer.phone unique app-level (KHÔNG DB unique vì soft-delete).
   Inline tạo khách mới trong form Order cũng áp dụng dup-phone block (cùng action).
 - Next.js 16 + Turbopack: `revalidatePath` **KHÔNG được phép gọi trong render** của
