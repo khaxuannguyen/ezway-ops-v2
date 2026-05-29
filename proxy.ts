@@ -15,9 +15,10 @@ export default async function proxy(request: NextRequest) {
   const isLoggedIn = Boolean(session);
 
   const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
+  const isDriverRoute = pathname === "/driver" || pathname.startsWith("/driver/");
   const isLoginRoute = pathname === "/login";
 
-  if (isAdminRoute && !isLoggedIn) {
+  if ((isAdminRoute || isDriverRoute) && !isLoggedIn) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
   if (isLoginRoute && isLoggedIn) {
@@ -28,5 +29,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin", "/admin/:path*", "/login"],
+  matcher: ["/admin", "/admin/:path*", "/driver", "/driver/:path*", "/login"],
 };

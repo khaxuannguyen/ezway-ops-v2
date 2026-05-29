@@ -37,6 +37,7 @@
 | Lệnh lấy hàng | `/admin/pickups` | Tạo trước (mã `PK-...`), nhập kiện hàng; gán tài xế + đổi trạng thái; **log đầy đủ lịch sử trạng thái** (PickupStatusLog) + timeline UI + ghi chú khi đổi |
 | Đẩy carrier (Forwarder Processing Phase A) | `/admin/processing` + `/admin/orders/[id]/forward` | Queue đơn pending; Copy Helper modal với click-to-copy từng cụm field (Sender / Receiver / Order info / Packages / Invoice) — paste sang portal Kango/KSN/Go; admin nhập tracking carrier trả + đánh dấu "đã đẩy". **CCCD ở Sender (Customer VN), Recipient chỉ tên/SĐT/địa chỉ gộp.** Bill packages LUÔN hiển thị trong form (kể cả khi có pickupCode tham chiếu) |
 | Thông báo nội bộ | `/admin/announcements` | List/detail/CRUD (kiểu Kango). Pinned đứng trước, badge "Mới" cho unread. ADMIN tạo/sửa/pin/xoá; mọi role xem theo `visibleToRoles[]`. `expiresAt` ẩn TB hết hạn. Sidebar có unread badge realtime (layout `force-dynamic`). `markAsRead` idempotent qua AnnouncementRead (KHÔNG revalidate trong render) |
+| Driver portal MVP | `/driver` + `/driver/pickups/[id]` | Mobile-first dashboard tài xế. List lệnh assigned (nhóm Đang xử lý / Đã hoàn tất). Detail lệnh: thông tin liên hệ + nút "Bấm để gọi" (tel:) + địa chỉ + kiện hàng. Read-only (đổi trạng thái vẫn admin xử lý). Login redirect: DRIVER → /driver thay vì /admin. Proxy chặn /driver/* nếu chưa login |
 | Kho vật tư | `/admin/supplies` | Nhập/Xuất/Kiểm kê + lịch sử |
 | Chi phí thành lập | `/admin/startup-expenses` | Tổng hợp + tự gợi ý nhóm theo từ khóa |
 | Tài khoản | `/admin/users` | CRUD tài khoản, gán role, đặt/reset mật khẩu (chỉ ADMIN) |
@@ -138,8 +139,8 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
       payment tay. Bật lại khi user mở thêm TK ở 1 bank trong list trên.
 
 ### Ưu tiên trung bình
-- [ ] **Driver portal** `/driver/*` — tài xế xem lệnh lấy hàng được gán, đổi
-      trạng thái, upload ảnh.
+- [ ] **Driver portal v2** — bổ sung đổi trạng thái + upload ảnh (MVP read-only
+      đã làm 2026-05-29).
 - [ ] Test tự động (Playwright / Vitest) — chưa setup.
 - [ ] Ảnh lệnh lấy hàng (PickupPhoto) — chưa làm. Lịch sử trạng thái đã làm xong.
 - [ ] Báo cáo tiêu hao vật tư theo kỳ (tháng/quý).
