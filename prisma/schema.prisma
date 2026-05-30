@@ -149,6 +149,12 @@ enum PackageType {
   ENVELOPE
 }
 
+enum LoginAttemptStatus {
+  PENDING
+  INVITED
+  IGNORED
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Models
 // ────────────────────────────────────────────────────────────────────────────
@@ -178,6 +184,7 @@ model User {
   ordersAssigned   Order[]           @relation("OrderAssignedTo")
   announcementsAuthored Announcement[]     @relation("AnnouncementAuthor")
   announcementReads     AnnouncementRead[]
+  loginAttemptsResolved LoginAttempt[]     @relation("LoginAttemptResolvedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -629,6 +636,31 @@ model AuditLog {
   @@index([entityType, entityId, at])
   @@index([userId, at])
   @@map("audit_logs")
+}
+
+/// Login attempt từ Google của email chưa được mời (invite-only).
+/// Admin xem ở /admin/pending-invites + tạo TK ngay hoặc bỏ qua.
+model LoginAttempt {
+  id          String             @id @default(cuid())
+  email       String
+  name        String?
+  picture     String?
+  googleSub   String?
+  ipAddress   String?
+  userAgent   String?
+  attemptedAt DateTime           @default(now())
+  attemptCount Int               @default(1)
+  /// Lần cuối gửi email cho admin — để rate-limit 1 email/giờ/email.
+  lastNotifiedAt DateTime?
+
+  status      LoginAttemptStatus @default(PENDING)
+  resolvedAt  DateTime?
+  resolvedById String?
+  resolvedBy  User?              @relation("LoginAttemptResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([status, attemptedAt])
+  @@index([email])
+  @@map("login_attempts")
 }
 
 model Supply {

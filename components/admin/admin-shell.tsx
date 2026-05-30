@@ -18,16 +18,19 @@ export function AdminShell({
   children,
   user,
   announcementUnread = 0,
+  pendingInvites = 0,
 }: {
   children: React.ReactNode;
   user?: AdminShellUser | null;
   announcementUnread?: number;
+  pendingInvites?: number;
 }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const closeMobile = React.useCallback(() => setMobileOpen(false), []);
   const role = user?.role;
   const badges: Record<string, number> = {
     "/admin/announcements": announcementUnread,
+    "/admin/pending-invites": pendingInvites,
   };
 
   return (

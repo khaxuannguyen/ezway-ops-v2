@@ -74,6 +74,7 @@ export async function createUser(
     return { ok: false, fieldErrors: collectFieldErrors(parsed.error.issues) };
   }
   const data = parsed.data;
+  const fromAttemptId = (formData.get("fromAttemptId") ?? "").toString().trim();
 
   try {
     const created = await prisma.user.create({
@@ -88,6 +89,19 @@ export async function createUser(
       },
       select: { id: true },
     });
+
+    // Đánh dấu LoginAttempt nguồn (nếu có) là INVITED.
+    if (fromAttemptId) {
+      await prisma.loginAttempt.updateMany({
+        where: { id: fromAttemptId, status: "PENDING" },
+        data: {
+          status: "INVITED",
+          resolvedAt: new Date(),
+          resolvedById: auth.id,
+        },
+      });
+      revalidatePath("/admin/pending-invites");
+    }
 
     revalidatePath("/admin/users");
     redirect(`/admin/users/${created.id}`);

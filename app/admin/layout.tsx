@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { countUnreadForUser } from "@/features/announcements/queries";
+import { countPendingLoginAttempts } from "@/features/login-attempts/queries";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +25,16 @@ export default async function AdminLayout({
   if (user.role === "DRIVER") {
     redirect("/driver");
   }
-  const announcementUnread = await countUnreadForUser(user.id, user.role);
+  const [announcementUnread, pendingInvites] = await Promise.all([
+    countUnreadForUser(user.id, user.role),
+    user.role === "ADMIN" ? countPendingLoginAttempts() : Promise.resolve(0),
+  ]);
   return (
-    <AdminShell user={user} announcementUnread={announcementUnread}>
+    <AdminShell
+      user={user}
+      announcementUnread={announcementUnread}
+      pendingInvites={pendingInvites}
+    >
       {children}
     </AdminShell>
   );

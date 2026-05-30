@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Truck,
   UserCog,
+  UserPlus,
   Users,
   Warehouse,
   Wrench,
@@ -99,6 +100,7 @@ export const ADMIN_NAV: NavSection[] = [
     items: [
       { href: "/admin/sales", label: "Thống kê sale", icon: BarChart3 },
       { href: "/admin/users", label: "Tài khoản", icon: UserCog },
+      { href: "/admin/pending-invites", label: "Yêu cầu cấp quyền", icon: UserPlus },
     ],
   },
 ];

@@ -28,6 +28,8 @@ export interface UserFormProps {
   submitLabel: string;
   /** Hiện ô nhập mật khẩu (dùng khi tạo mới). */
   withPassword?: boolean;
+  /** ID của LoginAttempt nguồn — nếu set, sau khi tạo TK xong sẽ mark INVITED. */
+  fromAttemptId?: string;
 }
 
 export function UserForm({
@@ -35,6 +37,7 @@ export function UserForm({
   action,
   submitLabel,
   withPassword = false,
+  fromAttemptId,
 }: UserFormProps) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<
@@ -52,6 +55,9 @@ export function UserForm({
 
   return (
     <form action={formAction}>
+      {fromAttemptId ? (
+        <input type="hidden" name="fromAttemptId" value={fromAttemptId} />
+      ) : null}
       {state && !state.ok && state.formError ? (
         <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {state.formError}
