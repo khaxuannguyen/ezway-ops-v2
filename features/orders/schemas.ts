@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   CostCategory,
   OrderStatus,
+  PackageType,
   PickupMethod,
 } from "@/app/generated/prisma/enums";
 
@@ -64,6 +65,12 @@ export type NewCustomerBlockInput = z.infer<typeof newCustomerBlockSchema>;
 /** 1 kiện hàng nhập trong form sale (khi không có pickup code). */
 export const orderPackageRowSchema = z.object({
   description: z.string().trim().optional().or(z.literal("")),
+  quantity: z
+    .coerce.number({ message: "Số kiện phải là số nguyên dương." })
+    .int("Số kiện phải là số nguyên.")
+    .positive("Số kiện phải lớn hơn 0.")
+    .default(1),
+  packageType: z.nativeEnum(PackageType).default(PackageType.CARTON),
   actualWeightKg: z
     .coerce.number({ message: "Cân thực phải lớn hơn 0." })
     .positive("Cân thực phải lớn hơn 0."),
@@ -113,7 +120,7 @@ function parseSaleExtraBlock(fd: FormData): Record<string, unknown> {
   const pkgIndexes = new Set<number>();
   for (const key of fd.keys()) {
     const m = key.match(
-      /^orderPkg\[(\d+)\]\[(description|actualWeightKg|lengthCm|widthCm|heightCm)\]$/
+      /^orderPkg\[(\d+)\]\[(description|quantity|packageType|actualWeightKg|lengthCm|widthCm|heightCm)\]$/
     );
     if (m) pkgIndexes.add(Number(m[1]));
   }
@@ -124,6 +131,11 @@ function parseSaleExtraBlock(fd: FormData): Record<string, unknown> {
     if (w.trim() === "" && l.trim() === "") continue;
     packages.push({
       description: (fd.get(`orderPkg[${i}][description]`) ?? "").toString(),
+      quantity:
+        (fd.get(`orderPkg[${i}][quantity]`) ?? "1").toString().trim() || "1",
+      packageType:
+        (fd.get(`orderPkg[${i}][packageType]`) ?? "CARTON").toString().trim() ||
+        "CARTON",
       actualWeightKg: w,
       lengthCm: l,
       widthCm: (fd.get(`orderPkg[${i}][widthCm]`) ?? "").toString(),

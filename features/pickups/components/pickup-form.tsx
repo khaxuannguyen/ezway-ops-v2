@@ -144,6 +144,7 @@ export function PickupForm({
             actualWeightKg: 0,
             volumetricWeightKg: 0,
             chargeableWeightKg: 0,
+            quantity: 1,
           };
         }
         return computePackageWeights({

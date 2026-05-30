@@ -143,6 +143,12 @@ enum CustomsExportType {
   RETURN
 }
 
+enum PackageType {
+  CARTON
+  PALLET
+  ENVELOPE
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Models
 // ────────────────────────────────────────────────────────────────────────────
@@ -434,12 +440,16 @@ model Package {
 
   trackingCode       String?
   description        String?
-  actualWeightKg     Decimal @db.Decimal(8, 2)
+  /// Số kiện cùng kích thước & cân nặng. >=1. Cân tính cước được nhân quantity.
+  quantity           Int         @default(1)
+  /// Loại kiện (Carton/Pallet/Túi-phong-bì) — gợi ý form + paste sang carrier.
+  packageType        PackageType @default(CARTON)
+  actualWeightKg     Decimal     @db.Decimal(8, 2)
   lengthCm           Int
   widthCm            Int
   heightCm           Int
-  volumetricWeightKg Decimal @db.Decimal(8, 2)
-  chargeableWeightKg Decimal @db.Decimal(8, 2)
+  volumetricWeightKg Decimal     @db.Decimal(8, 2)
+  chargeableWeightKg Decimal     @db.Decimal(8, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

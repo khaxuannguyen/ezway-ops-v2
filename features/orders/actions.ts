@@ -284,6 +284,8 @@ export async function createOrder(
     // reference text nếu sale có lệnh pickup từ trước.
     const packageInputs = data.packages.map((p) => ({
       description: normOpt(p.description),
+      quantity: p.quantity,
+      packageType: p.packageType,
       actualWeightKg: p.actualWeightKg,
       lengthCm: p.lengthCm,
       widthCm: p.widthCm,
@@ -291,7 +293,7 @@ export async function createOrder(
     }));
     const linkedPickupCode = normOpt(data.pickupCode);
 
-    // Cân quy đổi tính theo hệ số dịch vụ.
+    // Cân quy đổi tính theo hệ số dịch vụ. quantity nhân lúc tính tổng.
     const packageWeights = packageInputs.map((p) =>
       computePackageWeights(p, service.volumetricDivisor)
     );
@@ -407,6 +409,8 @@ export async function createOrder(
         data: packageInputs.map((p, i) => ({
           pickupRequestId: stub.id,
           description: p.description,
+          quantity: p.quantity,
+          packageType: p.packageType,
           actualWeightKg: p.actualWeightKg,
           lengthCm: p.lengthCm,
           widthCm: p.widthCm,
@@ -501,6 +505,7 @@ export async function updateOrder(
                 lengthCm: true,
                 widthCm: true,
                 heightCm: true,
+                quantity: true,
               },
             },
           },
@@ -531,6 +536,7 @@ export async function updateOrder(
                   lengthCm: p.lengthCm,
                   widthCm: p.widthCm,
                   heightCm: p.heightCm,
+                  quantity: p.quantity,
                 },
                 service.volumetricDivisor
               )

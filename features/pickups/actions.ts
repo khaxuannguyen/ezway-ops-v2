@@ -48,6 +48,7 @@ async function syncOrderFromPickup(
               lengthCm: true,
               widthCm: true,
               heightCm: true,
+              quantity: true,
             },
           },
         },
@@ -67,6 +68,7 @@ async function syncOrderFromPickup(
         lengthCm: p.lengthCm,
         widthCm: p.widthCm,
         heightCm: p.heightCm,
+        quantity: p.quantity,
       },
       divisor
     ),

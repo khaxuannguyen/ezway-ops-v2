@@ -27,6 +27,8 @@ export interface RecipientDefault {
 
 export interface PackageRowDefault {
   description?: string;
+  quantity?: string | number;
+  packageType?: "CARTON" | "PALLET" | "ENVELOPE";
   actualWeightKg?: string | number;
   lengthCm?: string | number;
   widthCm?: string | number;
@@ -66,9 +68,13 @@ function uid(): string {
     : Math.random().toString(36).slice(2);
 }
 
+type PkgType = "CARTON" | "PALLET" | "ENVELOPE";
+
 interface PkgRow {
   key: string;
   description: string;
+  quantity: string;
+  packageType: PkgType;
   actualWeightKg: string;
   lengthCm: string;
   widthCm: string;
@@ -79,12 +85,34 @@ function emptyPkgRow(): PkgRow {
   return {
     key: uid(),
     description: "",
+    quantity: "1",
+    packageType: "CARTON",
     actualWeightKg: "",
     lengthCm: "",
     widthCm: "",
     heightCm: "",
   };
 }
+
+const PKG_TYPE_LABEL: Record<PkgType, string> = {
+  CARTON: "Carton",
+  PALLET: "Pallet",
+  ENVELOPE: "Túi (phong bì)",
+};
+
+const CM_TO_INCH = 0.393701;
+const KG_TO_LB = 2.20462;
+const fmtInch = (cm: number): string =>
+  cm > 0 ? (cm * CM_TO_INCH).toFixed(2) + " in" : "0.00 in";
+const fmtLb = (kg: number): string =>
+  kg > 0 ? (kg * KG_TO_LB).toFixed(2) + " lb" : "0.00 lb";
+const fmtCbm = (cbm: number): string =>
+  cbm > 0
+    ? cbm.toLocaleString("en-US", {
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 4,
+      }) + " m³"
+    : "0.000 m³";
 
 /** Tính cân thể tích + cân tính cước cho 1 row. Số rỗng/sai → 0. */
 function computeDimWeight(
@@ -128,6 +156,8 @@ export function CarrierForwardSection({
       return defaults.packages.map((p) => ({
         key: uid(),
         description: (p.description ?? "").toString(),
+        quantity: (p.quantity ?? 1).toString(),
+        packageType: (p.packageType ?? "CARTON") as PkgType,
         actualWeightKg: (p.actualWeightKg ?? "").toString(),
         lengthCm: (p.lengthCm ?? "").toString(),
         widthCm: (p.widthCm ?? "").toString(),
@@ -320,172 +350,238 @@ export function CarrierForwardSection({
           </FormSection>
 
           <FormSection
-            title={"Kiện hàng (Bill)"}
+            title={"Thông tin kiện hàng"}
             description={
-              `Cân tính cước = max(cân thực, D×R×C / ${volumetricDivisor}). Hệ thống chọn số lớn hơn để áp bậc giá.`
+              `Cân tính cước = max(cân thực, D×R×C / ${volumetricDivisor}) × số kiện. CBM = D×R×C / 1.000.000.`
             }
           >
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">{"Danh sách kiện"}</p>
-                <Button type="button" variant="outline" size="sm" onClick={addPkg}>
-                  <Plus className="h-4 w-4" aria-hidden />
-                  {"Thêm kiện"}
-                </Button>
-              </div>
+            <div className="space-y-3">
               {errors?.packages ? (
                 <p className="text-xs text-destructive">{errors.packages}</p>
               ) : null}
 
-              {pkgRows.map((row, i) => (
-                <div
-                  key={row.key}
-                  className="grid gap-2 rounded-md border border-border bg-muted/20 p-3 sm:grid-cols-[1.4fr_repeat(4,80px)_repeat(2,100px)_40px]"
-                >
-                  <Field
-                    label={i === 0 ? "Mô tả hàng" : ""}
-                    htmlFor={`orderPkg[${i}][description]`}
+              {pkgRows.map((row, i) => {
+                const w = computeDimWeight(row, volumetricDivisor);
+                const qty = Math.max(1, Number(row.quantity) || 1);
+                const l = Number(row.lengthCm) || 0;
+                const wd = Number(row.widthCm) || 0;
+                const h = Number(row.heightCm) || 0;
+                const cbmPer = (l * wd * h) / 1_000_000;
+                const cbmTotal = cbmPer * qty;
+                const chargedTotal = w.chargeable * qty;
+                const useVolumetric =
+                  w.volumetric > w.actual && w.volumetric > 0;
+                return (
+                  <div
+                    key={row.key}
+                    className="rounded-md border border-border bg-muted/20 p-3"
                   >
-                    <Input
-                      id={`orderPkg[${i}][description]`}
-                      name={`orderPkg[${i}][description]`}
-                      value={row.description}
-                      onChange={(e) => setPkg(i, { description: e.target.value })}
-                      placeholder="Áo thun, mỹ phẩm, sách..."
-                    />
-                  </Field>
-                  <Field
-                    label={i === 0 ? "Dài (cm)" : ""}
-                    htmlFor={`orderPkg[${i}][lengthCm]`}
-                  >
-                    <Input
-                      id={`orderPkg[${i}][lengthCm]`}
-                      name={`orderPkg[${i}][lengthCm]`}
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={row.lengthCm}
-                      onChange={(e) => setPkg(i, { lengthCm: e.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    label={i === 0 ? "Rộng (cm)" : ""}
-                    htmlFor={`orderPkg[${i}][widthCm]`}
-                  >
-                    <Input
-                      id={`orderPkg[${i}][widthCm]`}
-                      name={`orderPkg[${i}][widthCm]`}
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={row.widthCm}
-                      onChange={(e) => setPkg(i, { widthCm: e.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    label={i === 0 ? "Cao (cm)" : ""}
-                    htmlFor={`orderPkg[${i}][heightCm]`}
-                  >
-                    <Input
-                      id={`orderPkg[${i}][heightCm]`}
-                      name={`orderPkg[${i}][heightCm]`}
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={row.heightCm}
-                      onChange={(e) => setPkg(i, { heightCm: e.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    label={i === 0 ? "Cân thực (kg)" : ""}
-                    htmlFor={`orderPkg[${i}][actualWeightKg]`}
-                  >
-                    <Input
-                      id={`orderPkg[${i}][actualWeightKg]`}
-                      name={`orderPkg[${i}][actualWeightKg]`}
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={row.actualWeightKg}
-                      onChange={(e) =>
-                        setPkg(i, { actualWeightKg: e.target.value })
-                      }
-                    />
-                  </Field>
-                  {(() => {
-                    const w = computeDimWeight(row, volumetricDivisor);
-                    const useVolumetric =
-                      w.volumetric > w.actual && w.volumetric > 0;
-                    return (
-                      <>
-                        <div className={i === 0 ? "self-end" : ""}>
-                          {i === 0 ? (
-                            <p className="mb-1 text-xs font-medium text-muted-foreground">
-                              {"Cân thể tích"}
-                            </p>
-                          ) : null}
-                          <div
-                            className={
-                              "flex h-9 items-center rounded-md border border-input bg-muted/40 px-2.5 text-xs " +
-                              (useVolumetric ? "font-semibold text-foreground" : "text-muted-foreground")
-                            }
-                            aria-label={"Cân quy đổi"}
-                          >
-                            {fmtKg(w.volumetric)}
-                          </div>
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {`Kiện #${i + 1}`}
+                      </span>
+                      <Input
+                        id={`orderPkg[${i}][description]`}
+                        name={`orderPkg[${i}][description]`}
+                        value={row.description}
+                        onChange={(e) =>
+                          setPkg(i, { description: e.target.value })
+                        }
+                        placeholder="Tên hàng hoá (áo thun, mỹ phẩm, sách...)"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removePkg(i)}
+                        disabled={pkgRows.length === 1}
+                        aria-label="Xoá kiện"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
+                      </Button>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-[70px_120px_repeat(4,1fr)_110px_110px]">
+                      <PkgCell
+                        label="Số kiện"
+                        showLabel={i === 0}
+                        hint={qty > 1 ? `× ${qty}` : null}
+                      >
+                        <Input
+                          id={`orderPkg[${i}][quantity]`}
+                          name={`orderPkg[${i}][quantity]`}
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={row.quantity}
+                          onChange={(e) =>
+                            setPkg(i, { quantity: e.target.value })
+                          }
+                        />
+                      </PkgCell>
+                      <PkgCell label="Type" showLabel={i === 0}>
+                        <Select
+                          id={`orderPkg[${i}][packageType]`}
+                          name={`orderPkg[${i}][packageType]`}
+                          value={row.packageType}
+                          onChange={(e) =>
+                            setPkg(i, {
+                              packageType: e.target.value as PkgType,
+                            })
+                          }
+                        >
+                          <option value="CARTON">{PKG_TYPE_LABEL.CARTON}</option>
+                          <option value="PALLET">{PKG_TYPE_LABEL.PALLET}</option>
+                          <option value="ENVELOPE">
+                            {PKG_TYPE_LABEL.ENVELOPE}
+                          </option>
+                        </Select>
+                      </PkgCell>
+                      <PkgCell
+                        label="Dài (cm)"
+                        showLabel={i === 0}
+                        hint={`= ${fmtInch(l)}`}
+                      >
+                        <Input
+                          id={`orderPkg[${i}][lengthCm]`}
+                          name={`orderPkg[${i}][lengthCm]`}
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={row.lengthCm}
+                          onChange={(e) =>
+                            setPkg(i, { lengthCm: e.target.value })
+                          }
+                        />
+                      </PkgCell>
+                      <PkgCell
+                        label="Rộng (cm)"
+                        showLabel={i === 0}
+                        hint={`= ${fmtInch(wd)}`}
+                      >
+                        <Input
+                          id={`orderPkg[${i}][widthCm]`}
+                          name={`orderPkg[${i}][widthCm]`}
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={row.widthCm}
+                          onChange={(e) =>
+                            setPkg(i, { widthCm: e.target.value })
+                          }
+                        />
+                      </PkgCell>
+                      <PkgCell
+                        label="Cao (cm)"
+                        showLabel={i === 0}
+                        hint={`= ${fmtInch(h)}`}
+                      >
+                        <Input
+                          id={`orderPkg[${i}][heightCm]`}
+                          name={`orderPkg[${i}][heightCm]`}
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={row.heightCm}
+                          onChange={(e) =>
+                            setPkg(i, { heightCm: e.target.value })
+                          }
+                        />
+                      </PkgCell>
+                      <PkgCell
+                        label="Cân thực (kg)"
+                        showLabel={i === 0}
+                        hint={`= ${fmtLb(w.actual)}`}
+                      >
+                        <Input
+                          id={`orderPkg[${i}][actualWeightKg]`}
+                          name={`orderPkg[${i}][actualWeightKg]`}
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={row.actualWeightKg}
+                          onChange={(e) =>
+                            setPkg(i, { actualWeightKg: e.target.value })
+                          }
+                        />
+                      </PkgCell>
+                      <PkgCell
+                        label="Tính cước (kg)"
+                        showLabel={i === 0}
+                        hint={
+                          useVolumetric
+                            ? "theo thể tích"
+                            : w.actual > 0
+                              ? "theo cân thực"
+                              : null
+                        }
+                      >
+                        <div
+                          className="flex h-9 items-center rounded-md border border-primary/30 bg-primary/5 px-2.5 text-xs font-semibold text-primary"
+                          aria-label="Cân tính cước"
+                        >
+                          {fmtKg(chargedTotal)}
                         </div>
-                        <div className={i === 0 ? "self-end" : ""}>
-                          {i === 0 ? (
-                            <p className="mb-1 text-xs font-medium text-muted-foreground">
-                              {"Tính cước"}
-                            </p>
-                          ) : null}
-                          <div
-                            className="flex h-9 items-center rounded-md border border-primary/30 bg-primary/5 px-2.5 text-xs font-semibold text-primary"
-                            aria-label={"Cân tính cước"}
-                          >
-                            {fmtKg(w.chargeable)}
-                          </div>
+                      </PkgCell>
+                      <PkgCell label="CBM" showLabel={i === 0}>
+                        <div
+                          className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-2.5 text-xs text-muted-foreground"
+                          aria-label="Charged CBM"
+                        >
+                          {fmtCbm(cbmTotal)}
                         </div>
-                      </>
-                    );
-                  })()}
-                  <div className={i === 0 ? "self-end" : ""}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removePkg(i)}
-                      disabled={pkgRows.length === 1}
-                      aria-label={"Xoá"}
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden />
-                    </Button>
+                      </PkgCell>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addPkg}
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                {"Thêm kiện hàng"}
+              </Button>
 
               {(() => {
                 const totals = pkgRows.reduce(
                   (acc, row) => {
                     const w = computeDimWeight(row, volumetricDivisor);
-                    acc.actual += w.actual;
-                    acc.volumetric += w.volumetric;
-                    acc.chargeable += w.chargeable;
+                    const q = Math.max(1, Number(row.quantity) || 1);
+                    acc.count += q;
+                    acc.actual += w.actual * q;
+                    acc.volumetric += w.volumetric * q;
+                    acc.chargeable += w.chargeable * q;
+                    acc.cbm +=
+                      ((Number(row.lengthCm) || 0) *
+                        (Number(row.widthCm) || 0) *
+                        (Number(row.heightCm) || 0) *
+                        q) /
+                      1_000_000;
                     return acc;
                   },
-                  { actual: 0, volumetric: 0, chargeable: 0 }
+                  { count: 0, actual: 0, volumetric: 0, chargeable: 0, cbm: 0 }
                 );
                 if (totals.chargeable <= 0) return null;
                 const usingVolumetric = totals.volumetric > totals.actual;
                 return (
-                  <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+                  <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
                     <span>
-                      {"Tổng cân thực: "}
-                      <span className="font-semibold">{fmtKg(totals.actual)}</span>
+                      {"Số kiện: "}
+                      <span className="font-semibold">{totals.count}</span>
                     </span>
                     <span>
-                      {"Tổng cân thể tích: "}
+                      {"Cân thực: "}
+                      <span className="font-semibold">
+                        {fmtKg(totals.actual)}
+                      </span>
+                    </span>
+                    <span>
+                      {"Cân thể tích: "}
                       <span
                         className={
                           usingVolumetric
@@ -496,18 +592,18 @@ export function CarrierForwardSection({
                         {fmtKg(totals.volumetric)}
                       </span>
                     </span>
+                    <span>
+                      {"Tổng CBM: "}
+                      <span className="font-mono">{fmtCbm(totals.cbm)}</span>
+                    </span>
                     <span className="rounded-md bg-primary/10 px-2 py-1 text-primary">
-                      {"Cân tính cước: "}
-                      <span className="font-bold">{fmtKg(totals.chargeable)}</span>
-                      {usingVolumetric ? (
-                        <span className="ml-1 text-[10px] text-primary/70">
-                          {"(theo thể tích)"}
-                        </span>
-                      ) : (
-                        <span className="ml-1 text-[10px] text-primary/70">
-                          {"(theo cân thực)"}
-                        </span>
-                      )}
+                      {"Tính cước: "}
+                      <span className="font-bold">
+                        {fmtKg(totals.chargeable)}
+                      </span>
+                      <span className="ml-1 text-[10px] text-primary/70">
+                        {usingVolumetric ? "(theo thể tích)" : "(theo cân thực)"}
+                      </span>
                     </span>
                   </div>
                 );
@@ -517,6 +613,32 @@ export function CarrierForwardSection({
         </>
       ) : null}
     </>
+  );
+}
+
+function PkgCell({
+  label,
+  showLabel,
+  hint,
+  children,
+}: {
+  label: string;
+  showLabel: boolean;
+  hint?: string | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      {showLabel ? (
+        <label className="text-[11px] font-medium text-muted-foreground">
+          {label}
+        </label>
+      ) : null}
+      {children}
+      {hint ? (
+        <span className="text-[10px] text-muted-foreground">{hint}</span>
+      ) : null}
+    </div>
   );
 }
 

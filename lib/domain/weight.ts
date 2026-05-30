@@ -48,6 +48,8 @@ export interface PackageWeights {
   actualWeightKg: number;
   volumetricWeightKg: number;
   chargeableWeightKg: number;
+  /** Số kiện cùng kích thước — 1 row form có thể đại diện N kiện thực tế. */
+  quantity: number;
 }
 
 export function computePackageWeights(input: {
@@ -55,6 +57,7 @@ export function computePackageWeights(input: {
   lengthCm: number;
   widthCm: number;
   heightCm: number;
+  quantity?: number;
 }, divisor: number = DEFAULT_DIVISOR): PackageWeights {
   const volumetricWeightKg = calculateVolumetricWeight(
     input.lengthCm,
@@ -67,6 +70,7 @@ export function computePackageWeights(input: {
     actualWeightKg: input.actualWeightKg,
     volumetricWeightKg,
     chargeableWeightKg,
+    quantity: input.quantity && input.quantity > 0 ? input.quantity : 1,
   };
 }
 
@@ -82,12 +86,19 @@ export function calculateOrderPackageTotals(
 ): OrderPackageTotals {
   const round2 = (n: number) => Math.round(n * 100) / 100;
   return packages.reduce<OrderPackageTotals>(
-    (acc, p) => ({
-      packageCount: acc.packageCount + 1,
-      totalActualWeight: round2(acc.totalActualWeight + p.actualWeightKg),
-      totalVolumetricWeight: round2(acc.totalVolumetricWeight + p.volumetricWeightKg),
-      totalChargeableWeight: round2(acc.totalChargeableWeight + p.chargeableWeightKg),
-    }),
+    (acc, p) => {
+      const q = p.quantity > 0 ? p.quantity : 1;
+      return {
+        packageCount: acc.packageCount + q,
+        totalActualWeight: round2(acc.totalActualWeight + p.actualWeightKg * q),
+        totalVolumetricWeight: round2(
+          acc.totalVolumetricWeight + p.volumetricWeightKg * q
+        ),
+        totalChargeableWeight: round2(
+          acc.totalChargeableWeight + p.chargeableWeightKg * q
+        ),
+      };
+    },
     {
       packageCount: 0,
       totalActualWeight: 0,

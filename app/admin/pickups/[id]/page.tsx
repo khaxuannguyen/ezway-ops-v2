@@ -50,6 +50,7 @@ export default async function PickupDetailPage({ params }: PageProps) {
       actualWeightKg: Number(p.actualWeightKg),
       volumetricWeightKg: Number(p.volumetricWeightKg),
       chargeableWeightKg: Number(p.chargeableWeightKg),
+      quantity: p.quantity,
     }))
   );
 
