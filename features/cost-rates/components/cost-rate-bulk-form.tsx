@@ -3,10 +3,11 @@
 import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardPaste, Upload } from "lucide-react";
+import { ClipboardPaste, Percent, Upload } from "lucide-react";
 import { Field } from "@/components/shared/field";
 import { FormSection } from "@/components/shared/form-section";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ import {
   STANDARD_FIXED_WEIGHTS,
   STANDARD_PERKG_RANGES,
 } from "@/features/cost-rates/constants";
+import { MarkupModal } from "./markup-modal";
+import type { MarkupInput } from "@/lib/cost-rates/markup";
 
 export interface ServiceOption {
   id: string;
@@ -92,6 +95,27 @@ export function CostRateBulkForm({
   const [pasteMsg, setPasteMsg] = React.useState<string | null>(null);
   const [fileName, setFileName] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [markupOpen, setMarkupOpen] = React.useState(false);
+
+  // Build items cho MarkupModal: gom fixed + perkg, skip giá rỗng/0.
+  // Đại diện weight cho fixed = mốc; cho perkg = min của range.
+  const markupItems: MarkupInput[] = React.useMemo(() => {
+    const out: MarkupInput[] = [];
+    fixedPrices.forEach((v, i) => {
+      const n = Number(v);
+      if (n > 0) out.push({ weightKg: STANDARD_FIXED_WEIGHTS[i], costVnd: n });
+    });
+    perKgPrices.forEach((v, i) => {
+      const n = Number(v);
+      if (n > 0)
+        out.push({ weightKg: STANDARD_PERKG_RANGES[i].min, costVnd: n });
+    });
+    return out;
+  }, [fixedPrices, perKgPrices]);
+
+  const cacheKey = defaultServiceId
+    ? `cost-rates-markup:${defaultServiceId}`
+    : "cost-rates-markup:default";
 
   const applyPaste = (text: string) => {
     const prices = parsePriceColumn(text);
@@ -130,6 +154,33 @@ export function CostRateBulkForm({
     setFixedPrices((prev) => prev.map((v, idx) => (idx === i ? value : v)));
   const setPerKgAt = (i: number, value: string) =>
     setPerKgPrices((prev) => prev.map((v, idx) => (idx === i ? value : v)));
+
+  /**
+   * MarkupModal apply: nhận sellPrices theo thứ tự markupItems.
+   * Gán lại vào fixedPrices/perKgPrices theo index tương ứng (skip vị trí rỗng).
+   */
+  const handleMarkupApply = (sellPrices: number[]) => {
+    let cursor = 0;
+    setFixedPrices((prev) =>
+      prev.map((v, i) => {
+        const n = Number(v);
+        if (n > 0 && cursor < sellPrices.length) {
+          return String(sellPrices[cursor++]);
+        }
+        return v;
+      })
+    );
+    setPerKgPrices((prev) =>
+      prev.map((v, i) => {
+        const n = Number(v);
+        if (n > 0 && cursor < sellPrices.length) {
+          return String(sellPrices[cursor++]);
+        }
+        return v;
+      })
+    );
+    setPasteMsg(`Đã áp markup vào ${sellPrices.length} giá.`);
+  };
 
   const fixedFilled = fixedPrices.filter((v) => v.trim() !== "").length;
   const perKgFilled = perKgPrices.filter((v) => v.trim() !== "").length;
@@ -207,6 +258,21 @@ export function CostRateBulkForm({
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setMarkupOpen(true)}
+              disabled={markupItems.length === 0}
+              title={
+                markupItems.length === 0
+                  ? "Nhập/dán giá carrier trước khi markup"
+                  : `Áp markup cho ${markupItems.length} giá`
+              }
+            >
+              <Percent className="h-4 w-4" aria-hidden />
+              <span className="ml-1">{"Markup theo dải cân"}</span>
+            </Button>
+            <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={() => {
@@ -238,14 +304,10 @@ export function CostRateBulkForm({
                 {w + " kg"}
               </div>
               <input type="hidden" name={"fixed[" + i + "][weightKg]"} value={String(w)} />
-              <Input
+              <MoneyInput
                 name={"fixed[" + i + "][amountVnd]"}
-                type="number"
-                step="1"
-                min="0"
                 value={fixedPrices[i]}
-                onChange={(e) => setFixedAt(i, e.target.value)}
-                inputMode="numeric"
+                onChangeValue={(n) => setFixedAt(i, n == null ? "" : String(n))}
                 placeholder={"Đơn giá (VND)"}
                 className="flex-1"
               />
@@ -264,14 +326,10 @@ export function CostRateBulkForm({
               </div>
               <input type="hidden" name={"perkg[" + i + "][minWeightKg]"} value={String(rg.min)} />
               <input type="hidden" name={"perkg[" + i + "][maxWeightKg]"} value={String(rg.max)} />
-              <Input
+              <MoneyInput
                 name={"perkg[" + i + "][amountVnd]"}
-                type="number"
-                step="1"
-                min="0"
                 value={perKgPrices[i]}
-                onChange={(e) => setPerKgAt(i, e.target.value)}
-                inputMode="numeric"
+                onChangeValue={(n) => setPerKgAt(i, n == null ? "" : String(n))}
                 placeholder={"Đơn giá (VND)"}
                 className="flex-1"
               />
@@ -293,6 +351,14 @@ export function CostRateBulkForm({
           </Button>
         </div>
       </div>
+
+      <MarkupModal
+        open={markupOpen}
+        onClose={() => setMarkupOpen(false)}
+        items={markupItems}
+        onApply={handleMarkupApply}
+        cacheKey={cacheKey}
+      />
     </form>
   );
 }
