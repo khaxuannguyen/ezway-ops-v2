@@ -21,9 +21,26 @@ export interface MarkupValidationResult {
   errors: string[];
 }
 
-/** Default 1 dải full range cho UI lần đầu. */
+/**
+ * Default 9 dải markup theo cấu trúc bảng giá EZWAY:
+ * - 4 dải fixed (0-5, 5.5-10, 10.5-15, 15.5-20.5 kg) — đơn lẻ nhỏ
+ * - 5 dải per-kg (21-44, 45-99, 100-299, 300-499, 500+ kg) — đơn sỉ/cont
+ *
+ * Markup mặc định giảm dần theo cân (đơn nhỏ margin cao, đơn lớn margin thấp
+ * để cạnh tranh). Admin có thể tinh chỉnh từng dải.
+ */
 export function defaultMarkupRanges(): MarkupRange[] {
-  return [{ minWeightKg: 0, maxWeightKg: 9999, markupPercent: 20 }];
+  return [
+    { minWeightKg: 0,    maxWeightKg: 5,    markupPercent: 25 },
+    { minWeightKg: 5.5,  maxWeightKg: 10,   markupPercent: 22 },
+    { minWeightKg: 10.5, maxWeightKg: 15,   markupPercent: 20 },
+    { minWeightKg: 15.5, maxWeightKg: 20.5, markupPercent: 18 },
+    { minWeightKg: 21,   maxWeightKg: 44,   markupPercent: 15 },
+    { minWeightKg: 45,   maxWeightKg: 99,   markupPercent: 13 },
+    { minWeightKg: 100,  maxWeightKg: 299,  markupPercent: 12 },
+    { minWeightKg: 300,  maxWeightKg: 499,  markupPercent: 10 },
+    { minWeightKg: 500,  maxWeightKg: 9999, markupPercent: 8 },
+  ];
 }
 
 /**
@@ -54,13 +71,12 @@ export function validateMarkupRanges(
     }
     if (i > 0) {
       const prev = sorted[i - 1];
+      // Chỉ chặn overlap (conflict thật). Gap được phép — vd bảng giá EZWAY
+      // có mốc fixed 0.5/1/1.5/.../20.5kg, gap 5-5.5 / 10-10.5 là tự nhiên,
+      // weight rơi vào gap sẽ không markup (giữ giá cost).
       if (r.minWeightKg < prev.maxWeightKg) {
         errors.push(
           `Dải #${i + 1} (${r.minWeightKg}-${r.maxWeightKg}kg) chồng lấp dải #${i} (${prev.minWeightKg}-${prev.maxWeightKg}kg).`
-        );
-      } else if (r.minWeightKg > prev.maxWeightKg) {
-        errors.push(
-          `Thiếu khoảng ${prev.maxWeightKg}-${r.minWeightKg}kg giữa dải #${i} và #${i + 1}.`
         );
       }
     }

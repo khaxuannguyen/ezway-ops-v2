@@ -113,9 +113,10 @@ export function CostRateBulkForm({
     return out;
   }, [fixedPrices, perKgPrices]);
 
+  // Bump version key khi đổi default ranges để force refresh cache cũ.
   const cacheKey = defaultServiceId
-    ? `cost-rates-markup:${defaultServiceId}`
-    : "cost-rates-markup:default";
+    ? `cost-rates-markup-v2:${defaultServiceId}`
+    : "cost-rates-markup-v2:default";
 
   const applyPaste = (text: string) => {
     const prices = parsePriceColumn(text);
@@ -157,28 +158,35 @@ export function CostRateBulkForm({
 
   /**
    * MarkupModal apply: nhận sellPrices theo thứ tự markupItems.
-   * Gán lại vào fixedPrices/perKgPrices theo index tương ứng (skip vị trí rỗng).
+   * Map về fixedPrices/perKgPrices theo index có giá.
+   *
+   * KHÔNG dùng closure cursor mutable (sẽ break trong React StrictMode khi
+   * updater chạy lần 2). Tính trước list filled-indices rồi map immutable.
    */
   const handleMarkupApply = (sellPrices: number[]) => {
-    let cursor = 0;
-    setFixedPrices((prev) =>
-      prev.map((v, i) => {
-        const n = Number(v);
-        if (n > 0 && cursor < sellPrices.length) {
-          return String(sellPrices[cursor++]);
-        }
-        return v;
-      })
-    );
-    setPerKgPrices((prev) =>
-      prev.map((v, i) => {
-        const n = Number(v);
-        if (n > 0 && cursor < sellPrices.length) {
-          return String(sellPrices[cursor++]);
-        }
-        return v;
-      })
-    );
+    const fixedFilledIdx: number[] = [];
+    fixedPrices.forEach((v, i) => {
+      if (Number(v) > 0) fixedFilledIdx.push(i);
+    });
+    const perKgFilledIdx: number[] = [];
+    perKgPrices.forEach((v, i) => {
+      if (Number(v) > 0) perKgFilledIdx.push(i);
+    });
+    const nFixedSell = Math.min(fixedFilledIdx.length, sellPrices.length);
+
+    const nextFixed = [...fixedPrices];
+    for (let k = 0; k < nFixedSell; k++) {
+      nextFixed[fixedFilledIdx[k]] = String(sellPrices[k]);
+    }
+    const nextPerKg = [...perKgPrices];
+    for (let k = 0; k < perKgFilledIdx.length; k++) {
+      const sellIdx = nFixedSell + k;
+      if (sellIdx >= sellPrices.length) break;
+      nextPerKg[perKgFilledIdx[k]] = String(sellPrices[sellIdx]);
+    }
+
+    setFixedPrices(nextFixed);
+    setPerKgPrices(nextPerKg);
     setPasteMsg(`Đã áp markup vào ${sellPrices.length} giá.`);
   };
 

@@ -147,15 +147,26 @@ export function MarkupModal({
           <section className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">{"Dải cân + markup %"}</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addRange}
-              >
-                <Plus className="h-3.5 w-3.5" aria-hidden />
-                {"Thêm dải"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setRanges(defaultMarkupRanges())}
+                  title="Khôi phục 9 dải mặc định EZWAY"
+                >
+                  {"Reset mặc định"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addRange}
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden />
+                  {"Thêm dải"}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               {ranges.map((r, i) => (
