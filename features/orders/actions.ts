@@ -736,3 +736,47 @@ export async function recalcOrderTotals(orderId: string): Promise<void> {
     data: { extraCostTotalVnd, profitVnd },
   });
 }
+
+/**
+ * Xoá đơn hàng (soft delete) — chỉ ADMIN.
+ * - Set `deletedAt` → ẩn khỏi list/detail (queries đã filter).
+ * - Tự hoàn kho vật tư đã xuất cho đơn này (idempotent qua refundedAt).
+ * - PickupRequest stub đi kèm vẫn giữ trong DB (orderId set null sau khi delete
+ *   Order do `onDelete: SetNull`) — không gây orphan.
+ *
+ * KHÔNG hard delete để có thể restore qua DB nếu nhầm.
+ */
+export async function deleteOrder(
+  orderId: string
+): Promise<ActionResult<{ id: string }>> {
+  const actor = await requireRole("ADMIN");
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, code: true, deletedAt: true },
+  });
+  if (!order) {
+    return { ok: false, formError: "Không tìm thấy đơn hàng." };
+  }
+  if (order.deletedAt) {
+    return { ok: false, formError: "Đơn hàng đã bị xoá." };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Hoàn kho vật tư (nếu có) — dùng helper sẵn có, idempotent.
+      await refundOrderStockMovements(tx, order.id, order.code, actor.id);
+      await tx.order.update({
+        where: { id: orderId },
+        data: { deletedAt: new Date() },
+      });
+    });
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin/supplies");
+    revalidatePath("/admin/dashboard");
+    return { ok: true, data: { id: orderId } };
+  } catch (err) {
+    console.error("deleteOrder", err);
+    return { ok: false, formError: "Không thể xoá đơn hàng. Vui lòng thử lại." };
+  }
+}

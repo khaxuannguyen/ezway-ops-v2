@@ -29,6 +29,7 @@ import { listPaymentsByOrder } from "@/features/payments/queries";
 import { createPayment } from "@/features/payments/actions";
 import { PaymentForm } from "@/features/payments/components/payment-form";
 import { PaymentsTable } from "@/features/payments/components/payments-table";
+import { DeleteOrderButton } from "@/features/orders/components/delete-order-button";
 import { unmarkOrderForwardedForm } from "@/features/orders/actions";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
@@ -101,6 +102,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
               <Pencil className="h-4 w-4" aria-hidden />
               {"Chỉnh sửa"}
             </LinkButton>
+            {isAdmin ? (
+              <DeleteOrderButton orderId={order.id} orderCode={order.code} />
+            ) : null}
           </div>
         }
       />
