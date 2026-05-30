@@ -121,7 +121,7 @@ export function MarkupModal({
         aria-hidden
       />
       <div
-        className="relative z-10 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl"
+        className="relative z-10 flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl"
         role="dialog"
         aria-modal
       >
@@ -142,8 +142,9 @@ export function MarkupModal({
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {/* Ranges editor */}
+        <div className="grid flex-1 grid-cols-1 gap-0 overflow-hidden md:grid-cols-[1fr_400px]">
+          {/* LEFT: Ranges editor + rounding */}
+          <div className="overflow-y-auto border-r border-border px-5 py-4">
           <section className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">{"Dải cân + markup %"}</p>
@@ -249,24 +250,30 @@ export function MarkupModal({
               ))}
             </Select>
           </section>
+          </div>
 
-          {/* Preview */}
-          <section className="mt-4 space-y-2">
-            <p className="text-sm font-medium">
-              {`Xem trước (${preview.length} dòng)`}
-            </p>
-            {items.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                {"Form chưa có giá carrier. Paste hoặc nhập trước khi mở markup."}
+          {/* RIGHT: Preview live (luôn visible) */}
+          <div className="flex flex-col overflow-hidden bg-muted/20">
+            <div className="border-b border-border px-4 py-3">
+              <p className="text-sm font-semibold">
+                {`Xem trước (${preview.length} dòng)`}
               </p>
-            ) : !validation.ok ? (
               <p className="text-xs text-muted-foreground">
-                {"Sửa lỗi dải markup ở trên để xem preview."}
+                {"Cập nhật real-time khi đổi dải/markup."}
               </p>
-            ) : (
-              <div className="max-h-80 overflow-y-auto rounded-md border border-border">
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {items.length === 0 ? (
+                <div className="p-4 text-xs text-muted-foreground">
+                  {"Form chưa có giá carrier. Paste hoặc nhập trước khi mở markup."}
+                </div>
+              ) : !validation.ok ? (
+                <div className="p-4 text-xs text-muted-foreground">
+                  {"Sửa lỗi dải markup bên trái để xem preview."}
+                </div>
+              ) : (
                 <table className="w-full text-xs">
-                  <thead className="sticky top-0 bg-muted/60 text-muted-foreground">
+                  <thead className="sticky top-0 z-10 bg-muted/80 text-muted-foreground backdrop-blur">
                     <tr>
                       <th className="px-2 py-1.5 text-left font-medium">Cân</th>
                       <th className="px-2 py-1.5 text-right font-medium">Carrier</th>
@@ -278,7 +285,7 @@ export function MarkupModal({
                     {preview.map((p, i) => (
                       <tr
                         key={i}
-                        className="border-t border-border hover:bg-muted/30"
+                        className="border-t border-border/60 hover:bg-muted/40"
                       >
                         <td className="px-2 py-1 font-mono">{p.weightKg} kg</td>
                         <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">
@@ -288,15 +295,15 @@ export function MarkupModal({
                           {fmtVnd(p.sellVnd)}
                         </td>
                         <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">
-                          +{p.markupPercent}%
+                          {p.markupPercent > 0 ? `+${p.markupPercent}%` : "—"}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </section>
+              )}
+            </div>
+          </div>
         </div>
 
         <footer className="flex items-center justify-end gap-2 border-t border-border bg-muted/30 px-5 py-3">
