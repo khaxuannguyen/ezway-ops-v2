@@ -493,9 +493,22 @@ export async function updateOrder(
   const data = parsed.data;
 
   try {
+    const actor = await getCurrentUser();
+    if (!actor) {
+      return {
+        ok: false,
+        formError: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+      };
+    }
+
     const existing = await prisma.order.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        code: true,
+        chargeableWeightKg: true,
+        salesUserId: true,
+        deletedAt: true,
         extraCosts: { select: { amountVnd: true } },
         pickupRequest: {
           select: {
@@ -512,8 +525,15 @@ export async function updateOrder(
         },
       },
     });
-    if (!existing) {
+    if (!existing || existing.deletedAt) {
       return { ok: false, formError: "Không tìm thấy đơn hàng." };
+    }
+    // SALE chỉ sửa đơn của chính mình (bảo vệ action — page-level đã chặn UI).
+    if (actor.role === "SALE" && existing.salesUserId !== actor.id) {
+      return {
+        ok: false,
+        formError: "Bạn không có quyền sửa đơn hàng này.",
+      };
     }
 
     const service = await prisma.shippingService.findUnique({
@@ -562,13 +582,6 @@ export async function updateOrder(
     const totalFeeVnd = data.customerFeeVnd;
     const profitVnd = totalFeeVnd - baseCostVnd - extraCostTotalVnd;
 
-    const actor = await getCurrentUser();
-    if (!actor) {
-      return {
-        ok: false,
-        formError: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
-      };
-    }
     const salesUserId = await resolveSalesUserId(actor, data.salesUserId);
     const assignedToUserId = await resolveAssignedToUserId(data.assignedToUserId);
 

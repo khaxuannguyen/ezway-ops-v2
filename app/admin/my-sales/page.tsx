@@ -25,6 +25,7 @@ import {
 } from "@/features/sales/queries";
 import { resolveMonth } from "@/features/sales/month";
 import { formatCurrencyVND } from "@/lib/format";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -37,6 +38,10 @@ interface PageProps {
 
 export default async function MySalesPage({ searchParams }: PageProps) {
   const user = await requireUser();
+  // Trang dành riêng cho SALE — non-SALE bookmark URL sẽ về dashboard chính.
+  if (user.role !== "SALE") {
+    redirect("/admin/dashboard");
+  }
 
   const sp = await searchParams;
   const month = resolveMonth(sp.month);
