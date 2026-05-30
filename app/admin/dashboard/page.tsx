@@ -103,19 +103,19 @@ export default async function DashboardPage() {
       label: "Kiện hàng đang xử lý",
       value: stats.processingPackages,
       icon: Package,
-      hint: "Nhẫn từ các đơn chưa hoàn thành",
+      hint: "Tổng kiện từ các đơn chưa hoàn thành",
     },
     {
       label: "Lệnh lấy hàng đang mở",
       value: stats.openPickups,
       icon: Truck,
-      hint: "Chưa hoàn tành/huỷ",
+      hint: "Chưa hoàn thành/huỷ",
     },
     {
       label: "Khách hàng hoạt động",
       value: stats.activeCustomers,
       icon: Users,
-      hint: "Tạo được con suất hó",
+      hint: "Có đơn trong 30 ngày qua",
     },
   ];
 
@@ -123,7 +123,7 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title={"Bảng điều khiển"}
-        description={"Tổng quan vận hành hiau quá cuộc đời thực."}
+        description={"Tổng quan vận hành — cập nhật theo thời gian thực."}
       />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -153,7 +153,7 @@ export default async function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>{"Doanh thu"}</CardTitle>
-              <CardDescription>{"Tổng thỨ doanh thu đ�# diào thu đơn hàng đã thành công."}</CardDescription>
+              <CardDescription>{"Tổng tiền đã thu từ đơn hàng đã hoàn tất."}</CardDescription>
             </div>
             <Link
               href="/admin/orders"
@@ -209,7 +209,7 @@ export default async function DashboardPage() {
               <div className="p-6">
                 <EmptyState
                   title={"Chưa có hoạt động"}
-                  description={"Hoạt động vận hành sẽ xấy hiện sau khi có đơn hàng đầu tiên."}
+                  description={"Hoạt động vận hành sẽ xuất hiện sau khi có đơn hàng đầu tiên."}
                 />
               </div>
             ) : (

@@ -46,7 +46,7 @@ export const PAYMENT_STATUS_TONE: Record<PaymentStatus, BadgeTone> = {
 
 export const PICKUP_METHOD_LABEL: Record<PickupMethod, string> = {
   NONE: "Không pickup",
-  EZWAY_PICKUP: "EZWay đến lấy",
+  EZWAY_PICKUP: "EZWAY đến lấy",
   CUSTOMER_DROP_OFF: "Khách mang đến",
   THIRD_PARTY: "Bên thứ ba",
 };

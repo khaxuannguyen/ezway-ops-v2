@@ -192,11 +192,11 @@ async function main() {
 
       // 4. Shipping Services
       const servicesData = [
-        { code: "EZW-AIR-US-PRI", name: "EZWay Air US Premium", transportType: ShippingTransportType.AIR, destinationCode: "US", destinationName: `Hoa Kỳ`, volumetricDivisor: 5000, description: "Dịch vụ hàng không, ưu tiên giao nhanh 5-7 ngày" },
-        { code: "EZW-AIR-US-ECO", name: "EZWay Air US Economy", transportType: ShippingTransportType.AIR, destinationCode: "US", destinationName: `Hoa Kỳ`, volumetricDivisor: 6000, description: "Dịch vụ hàng không Mỹ tiết kiệm, giao 10-14 ngày" },
-        { code: "EZW-SEA-US", name: "EZWay Sea US", transportType: ShippingTransportType.SEA, destinationCode: "US", destinationName: `Hoa Kỳ`, volumetricDivisor: 6000, description: "Dịch vụ đường biển Mỹ, giá rẻ giao 45-60 ngày" },
-        { code: "EZW-SEA-CAD", name: "EZWay Sea Canada", transportType: ShippingTransportType.SEA, destinationCode: "CA", destinationName: "Canada", volumetricDivisor: 6000, description: "Dịch vụ đường biển Canada, giao 50-65 ngày" },
-        { code: "EZW-AIR-EU", name: "EZWay Air Europe", transportType: ShippingTransportType.AIR, destinationCode: "EU", destinationName: "Châu Âu", volumetricDivisor: 5000, description: "Dịch vụ hàng không Châu Âu, bảng giá đầy đủ theo bậc cân" },
+        { code: "EZW-AIR-US-PRI", name: "EZWAY Air US Premium", transportType: ShippingTransportType.AIR, destinationCode: "US", destinationName: `Hoa Kỳ`, volumetricDivisor: 5000, description: "Dịch vụ hàng không, ưu tiên giao nhanh 5-7 ngày" },
+        { code: "EZW-AIR-US-ECO", name: "EZWAY Air US Economy", transportType: ShippingTransportType.AIR, destinationCode: "US", destinationName: `Hoa Kỳ`, volumetricDivisor: 6000, description: "Dịch vụ hàng không Mỹ tiết kiệm, giao 10-14 ngày" },
+        { code: "EZW-SEA-US", name: "EZWAY Sea US", transportType: ShippingTransportType.SEA, destinationCode: "US", destinationName: `Hoa Kỳ`, volumetricDivisor: 6000, description: "Dịch vụ đường biển Mỹ, giá rẻ giao 45-60 ngày" },
+        { code: "EZW-SEA-CAD", name: "EZWAY Sea Canada", transportType: ShippingTransportType.SEA, destinationCode: "CA", destinationName: "Canada", volumetricDivisor: 6000, description: "Dịch vụ đường biển Canada, giao 50-65 ngày" },
+        { code: "EZW-AIR-EU", name: "EZWAY Air Europe", transportType: ShippingTransportType.AIR, destinationCode: "EU", destinationName: "Châu Âu", volumetricDivisor: 5000, description: "Dịch vụ hàng không Châu Âu, bảng giá đầy đủ theo bậc cân" },
       ];
       const services: Record<string, { id: string }> = {};
       for (const s of servicesData) {
