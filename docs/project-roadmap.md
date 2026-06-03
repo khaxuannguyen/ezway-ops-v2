@@ -1,9 +1,9 @@
 # EZWAY Ops v2 — Project Roadmap
 
 > **NGUỒN SỰ THẬT DUY NHẤT về tiến độ.** Mỗi phiên làm việc: đọc file này trước.
-> Cập nhật cuối: 2026-05-29 (Form sale Order theo mẫu khai hàng + Module thông
-> báo nội bộ + Inline tạo khách mới khi sale gửi lần đầu). E2E smoke: 17/17
-> backend PASS + 14/14 routes load OK + build clean.
+> Cập nhật cuối: 2026-05-30 (Driver portal MVP + Pending invites + Email notify
+> admin + Markup cost-rates theo dải cân + ADMIN xoá đơn + Backup script + Deploy
+> doc Vercel/Neon). Build pass + TS clean.
 > **Tin mới (2026-05-29):** đã có STK ngân hàng công ty + chữ ký số + HDDT.
 > **HDDT integration** sẵn sàng triển khai (ưu tiên #1 — mở khoá khách B2B).
 > **Sepay Phase 2 bị chặn** vì Sepay Open Banking không support Techcombank
@@ -38,6 +38,9 @@
 | Đẩy carrier (Forwarder Processing Phase A) | `/admin/processing` + `/admin/orders/[id]/forward` | Queue đơn pending; Copy Helper modal với click-to-copy từng cụm field (Sender / Receiver / Order info / Packages / Invoice) — paste sang portal Kango/KSN/Go; admin nhập tracking carrier trả + đánh dấu "đã đẩy". **CCCD ở Sender (Customer VN), Recipient chỉ tên/SĐT/địa chỉ gộp.** Bill packages LUÔN hiển thị trong form (kể cả khi có pickupCode tham chiếu) |
 | Thông báo nội bộ | `/admin/announcements` | List/detail/CRUD (kiểu Kango). Pinned đứng trước, badge "Mới" cho unread. ADMIN tạo/sửa/pin/xoá; mọi role xem theo `visibleToRoles[]`. `expiresAt` ẩn TB hết hạn. Sidebar có unread badge realtime (layout `force-dynamic`). `markAsRead` idempotent qua AnnouncementRead (KHÔNG revalidate trong render) |
 | Driver portal MVP | `/driver` + `/driver/pickups/[id]` | Mobile-first dashboard tài xế. List lệnh assigned (nhóm Đang xử lý / Đã hoàn tất). Detail lệnh: thông tin liên hệ + nút "Bấm để gọi" (tel:) + địa chỉ + kiện hàng. Read-only (đổi trạng thái vẫn admin xử lý). Login redirect: DRIVER → /driver thay vì /admin. Proxy chặn /driver/* nếu chưa login |
+| Yêu cầu cấp quyền | `/admin/pending-invites` | Google login từ email chưa được mời → app ghi LoginAttempt + gửi email cho mọi ADMIN qua Resend (rate-limit 1 email/giờ/email). ADMIN xem list pending + nút "Tạo TK ngay" (prefill name/email từ Google) hoặc "Bỏ qua". Sidebar badge unread count. Email skip nếu thiếu RESEND_API_KEY (in-app log vẫn work) |
+| ADMIN xoá đơn | nút trên `/admin/orders/[id]` | Soft delete (set `deletedAt`), auto hoàn kho vật tư đã xuất (idempotent qua `refundedAt`). Confirm dialog liệt kê 3 hệ quả. Restore qua DB nếu nhầm |
+| Markup cost-rates | modal trong `/admin/cost-rates/new` + `[id]/edit` | Paste giá carrier → mở "Markup theo dải cân" → 9 dải EZWAY mặc định (0-5/5.5-10/10.5-15/15.5-20.5/21-44/45-99/100-299/300-499/500+) với %markup tinh chỉnh được → preview live bên phải (split 2 col) → apply vào form. Làm tròn 1k/5k/10k. localStorage cache ranges per service. MoneyInput thousand separator live `2.811.325` |
 | Kho vật tư | `/admin/supplies` | Nhập/Xuất/Kiểm kê + lịch sử |
 | Chi phí thành lập | `/admin/startup-expenses` | Tổng hợp + tự gợi ý nhóm theo từ khóa |
 | Tài khoản | `/admin/users` | CRUD tài khoản, gán role, đặt/reset mật khẩu (chỉ ADMIN) |
@@ -104,7 +107,7 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
 - ADMIN có nút "Bỏ đánh dấu" để revert khi cần (race condition guard).
 - Phase B (defer): browser automation, multi-carrier custom layouts.
 
-**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`, `add_sale_role_and_password`, `add_order_sales_user`, `add_google_auth_employee_profile`, `pickup_first`, `pickup_created_by`, `customer_sales_owner`, `add_payment_ar`, `stock_refund_marker`, `add_forwarder_processing`, `simplify_recipient_assignee`, `fix_cccd_pickup_ref`, `add_announcements` (17 tổng)
+**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`, `add_sale_role_and_password`, `add_order_sales_user`, `add_google_auth_employee_profile`, `pickup_first`, `pickup_created_by`, `customer_sales_owner`, `add_payment_ar`, `stock_refund_marker`, `add_forwarder_processing`, `simplify_recipient_assignee`, `fix_cccd_pickup_ref`, `add_announcements`, `add_package_quantity_type`, `add_login_attempts` (19 tổng)
 
 **Form Order sale (mẫu khai hàng):**
 - Sale điền theo "FORM KHAI HÀNG MẪU" — đơn giản hoá, bỏ Phase A invoice items.
@@ -128,19 +131,28 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
 ## ⬜ Chưa làm / để sau
 
 ### Ưu tiên CAO
-- [ ] **HDDT integration** — xuất hoá đơn điện tử từ Order detail (chữ ký số +
-      HDDT đã mua). Cần chọn provider (Viettel/VNPT/MISA/EasyInvoice…) → SDK/API.
-      **Việc tiếp theo.**
+- [ ] **HDDT integration EasyInvoice** — xuất hoá đơn điện tử từ Order detail
+      (chữ ký số + HDDT đã mua, provider EasyInvoice của Softdreams). User cần
+      liên hệ Softdreams bật gói tích hợp API → gửi App ID/Secret. **Việc tiếp theo.**
+- [ ] **Deploy production Vercel + Neon** — doc đã chuẩn bị (`docs/deploy-vercel-neon.md`).
+      User cần đăng ký Vercel + Neon + domain → tao implement build script + migrate
+      data + smoke test. ~1-2 ngày.
 
 ### Tạm hoãn
 - [ ] **Sepay Phase 2** — auto-reconcile chuyển khoản. Bị chặn vì Sepay Open
       Banking không support Techcombank (chỉ 11 bank: VCB/Sacombank/TPBank/
       VPBank/VietinBank/ACB/BIDV/MBBank/OCB/KienLongBank/MSB). Tạm thời nhập
       payment tay. Bật lại khi user mở thêm TK ở 1 bank trong list trên.
+- [ ] **UI polish Linear-style** — brief `docs/ui-polish-plan.md`. 4-day plan
+      với design token + brand color navy `#1E2F5E` + Geist Sans font. Đợi
+      sau khi launch production.
 
 ### Ưu tiên trung bình
 - [ ] **Driver portal v2** — bổ sung đổi trạng thái + upload ảnh (MVP read-only
-      đã làm 2026-05-29).
+      đã làm 2026-05-29). Hardening note `role-hardening-todo.md` — fix action
+      gate cho DRIVER khi v2.
+- [ ] **Backup automation** — script `scripts/backup-local-db.ps1` đã có +
+      `docs/backup-restore.md`. User cần setup Task Scheduler Windows chạy daily 02:00.
 - [ ] Test tự động (Playwright / Vitest) — chưa setup.
 - [ ] Ảnh lệnh lấy hàng (PickupPhoto) — chưa làm. Lịch sử trạng thái đã làm xong.
 - [ ] Báo cáo tiêu hao vật tư theo kỳ (tháng/quý).
