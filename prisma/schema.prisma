@@ -155,6 +155,11 @@ enum LoginAttemptStatus {
   IGNORED
 }
 
+enum InvoiceStatus {
+  ISSUED
+  CANCELLED
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Models
 // ────────────────────────────────────────────────────────────────────────────
@@ -185,6 +190,7 @@ model User {
   announcementsAuthored Announcement[]     @relation("AnnouncementAuthor")
   announcementReads     AnnouncementRead[]
   loginAttemptsResolved LoginAttempt[]     @relation("LoginAttemptResolvedBy")
+  invoiceRecordsCreated InvoiceRecord[]    @relation("InvoiceRecordedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -417,6 +423,7 @@ model Order {
   pickupRequest         PickupRequest?
 
   payments       Payment[]
+  invoiceRecords InvoiceRecord[]
   extraCosts     OrderExtraCost[]
   stockMovements StockMovement[]
 
@@ -585,6 +592,36 @@ model Payment {
   @@index([orderId, paidAt])
   @@index([recordedById, paidAt])
   @@map("payments")
+}
+
+/// Hoá đơn điện tử (HDDT) ghi nhận thủ công sau khi admin xuất ở portal
+/// EasyInvoice (Softdreams). Không tích hợp API — chỉ lưu metadata để tracking.
+/// 1 Order ↔ N InvoiceRecord (B2B có thể chia HDDT).
+model InvoiceRecord {
+  id            String        @id @default(cuid())
+  orderId       String
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Số HDDT (vd "00000123") — Softdreams cấp.
+  invoiceNumber String
+  /// Mã tra cứu HDDT — khách dùng để check trên cổng thuế.
+  lookupCode    String?
+  /// Ngày xuất HDDT (theo portal).
+  issuedAt      DateTime
+  /// Tổng tiền HDDT (VND, integer). Có thể khác Order.totalFeeVnd nếu chia HDDT.
+  totalVnd      Int
+  status        InvoiceStatus @default(ISSUED)
+  notes         String?
+
+  recordedById String
+  recordedBy   User   @relation("InvoiceRecordedBy", fields: [recordedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId, issuedAt])
+  @@index([issuedAt])
+  @@index([invoiceNumber])
+  @@map("invoice_records")
 }
 
 model Announcement {

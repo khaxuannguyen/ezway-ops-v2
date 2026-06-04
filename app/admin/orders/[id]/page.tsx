@@ -31,9 +31,16 @@ import { PaymentForm } from "@/features/payments/components/payment-form";
 import { PaymentsTable } from "@/features/payments/components/payments-table";
 import { DeleteOrderButton } from "@/features/orders/components/delete-order-button";
 import { unmarkOrderForwardedForm } from "@/features/orders/actions";
+import { listInvoicesByOrder } from "@/features/invoices/queries";
+import { createInvoice } from "@/features/invoices/actions";
+import { InvoiceForm } from "@/features/invoices/components/invoice-form";
+import {
+  CancelInvoiceButton,
+  DeleteInvoiceButton,
+} from "@/features/invoices/components/invoice-actions";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
-import { formatDateTime, formatWeight } from "@/lib/format";
+import { formatDateTime, formatWeight, formatCurrencyVND, formatDate } from "@/lib/format";
 import {
   PICKUP_METHOD_LABEL,
   PICKUP_STATUS_LABEL,
@@ -69,12 +76,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
   );
 
   const payments = await listPaymentsByOrder(order.id);
+  const invoices = await listInvoicesByOrder(order.id);
   const remainingVnd = order.totalFeeVnd - order.paidVnd;
   const canManagePayments = user.role === "ADMIN" || user.role === "STAFF";
   const canManageForwarding = user.role === "ADMIN" || user.role === "STAFF";
+  const canManageInvoices = user.role === "ADMIN" || user.role === "STAFF";
   const isAdmin = user.role === "ADMIN";
   const createPaymentAction = createPayment.bind(null, order.id);
+  const createInvoiceAction = createInvoice.bind(null, order.id);
   const unmarkForwardedAction = unmarkOrderForwardedForm.bind(null, order.id);
+  const hasIssuedInvoice = invoices.some((inv) => inv.status === "ISSUED");
 
   return (
     <div className="space-y-6">
@@ -512,6 +523,107 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 action={createPaymentAction}
                 submitLabel={"Ghi nhận"}
                 remainingVnd={remainingVnd > 0 ? remainingVnd : undefined}
+              />
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>{"Hoá đơn điện tử (HDDT)"}</CardTitle>
+            <CardDescription>
+              {hasIssuedInvoice
+                ? `${invoices.filter((i) => i.status === "ISSUED").length} HDDT đã xuất cho đơn này.`
+                : "Chưa xuất HDDT. Xuất ở portal EasyInvoice rồi nhập mã vào đây để tracking."}
+            </CardDescription>
+          </div>
+          {hasIssuedInvoice ? (
+            <Badge tone="success">{"Đã xuất HDDT"}</Badge>
+          ) : (
+            <Badge tone="warning">{"Chưa xuất"}</Badge>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {invoices.length > 0 ? (
+            <div className="overflow-hidden rounded-md border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>{"Số HDDT"}</TableHead>
+                    <TableHead>{"Mã tra cứu"}</TableHead>
+                    <TableHead>{"Ngày xuất"}</TableHead>
+                    <TableHead className="text-right">{"Tiền HDDT"}</TableHead>
+                    <TableHead>{"Trạng thái"}</TableHead>
+                    <TableHead>{"Người ghi"}</TableHead>
+                    {canManageInvoices ? (
+                      <TableHead className="text-right">{"Thao tác"}</TableHead>
+                    ) : null}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invoices.map((inv) => (
+                    <TableRow key={inv.id}>
+                      <TableCell className="font-mono font-semibold">
+                        {inv.invoiceNumber}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {inv.lookupCode ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {formatDate(inv.issuedAt)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrencyVND(inv.totalVnd)}
+                      </TableCell>
+                      <TableCell>
+                        {inv.status === "ISSUED" ? (
+                          <Badge tone="success">{"Đã xuất"}</Badge>
+                        ) : (
+                          <Badge tone="neutral">{"Đã huỷ"}</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {inv.recordedBy.name}
+                      </TableCell>
+                      {canManageInvoices ? (
+                        <TableCell>
+                          <div className="flex justify-end gap-1">
+                            {inv.status === "ISSUED" ? (
+                              <CancelInvoiceButton
+                                invoiceId={inv.id}
+                                invoiceNumber={inv.invoiceNumber}
+                              />
+                            ) : null}
+                            <DeleteInvoiceButton
+                              invoiceId={inv.id}
+                              invoiceNumber={inv.invoiceNumber}
+                            />
+                          </div>
+                        </TableCell>
+                      ) : null}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+
+          {canManageInvoices ? (
+            <div className="rounded-md border border-dashed border-border p-4">
+              <p className="mb-3 text-sm font-medium">
+                {"Ghi nhận HDDT mới"}
+              </p>
+              <p className="mb-3 text-xs text-muted-foreground">
+                {
+                  "Sau khi xuất HDDT trên portal EasyInvoice, nhập số/mã/ngày vào đây để app tracking."
+                }
+              </p>
+              <InvoiceForm
+                action={createInvoiceAction}
+                submitLabel="Lưu HDDT"
+                defaults={{ totalVnd: order.totalFeeVnd }}
               />
             </div>
           ) : null}

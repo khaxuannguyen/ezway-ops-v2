@@ -3,6 +3,7 @@ import {
   Banknote,
   BarChart3,
   ClipboardList,
+  FileText,
   Landmark,
   LayoutDashboard,
   Megaphone,
@@ -77,6 +78,7 @@ export const ADMIN_NAV: NavSection[] = [
       },
       { href: "/admin/supplies", label: "Kho vật tư", icon: Warehouse, roles: OPS },
       { href: "/admin/drivers", label: "Tài xế", icon: Truck, roles: OPS },
+      { href: "/admin/invoices", label: "Hoá đơn điện tử", icon: FileText, roles: OPS },
     ],
   },
   {

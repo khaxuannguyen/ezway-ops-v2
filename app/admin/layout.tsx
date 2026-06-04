@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { countUnreadForUser } from "@/features/announcements/queries";
 import { countPendingLoginAttempts } from "@/features/login-attempts/queries";
+import { countOrdersWithoutInvoice } from "@/features/invoices/queries";
 import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -25,15 +26,18 @@ export default async function AdminLayout({
   if (user.role === "DRIVER") {
     redirect("/driver");
   }
-  const [announcementUnread, pendingInvites] = await Promise.all([
+  const isOps = user.role === "ADMIN" || user.role === "STAFF";
+  const [announcementUnread, pendingInvites, pendingInvoices] = await Promise.all([
     countUnreadForUser(user.id, user.role),
     user.role === "ADMIN" ? countPendingLoginAttempts() : Promise.resolve(0),
+    isOps ? countOrdersWithoutInvoice() : Promise.resolve(0),
   ]);
   return (
     <AdminShell
       user={user}
       announcementUnread={announcementUnread}
       pendingInvites={pendingInvites}
+      pendingInvoices={pendingInvoices}
     >
       {children}
     </AdminShell>

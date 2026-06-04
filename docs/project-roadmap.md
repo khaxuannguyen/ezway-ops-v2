@@ -41,6 +41,7 @@
 | Yêu cầu cấp quyền | `/admin/pending-invites` | Google login từ email chưa được mời → app ghi LoginAttempt + gửi email cho mọi ADMIN qua Resend (rate-limit 1 email/giờ/email). ADMIN xem list pending + nút "Tạo TK ngay" (prefill name/email từ Google) hoặc "Bỏ qua". Sidebar badge unread count. Email skip nếu thiếu RESEND_API_KEY (in-app log vẫn work) |
 | ADMIN xoá đơn | nút trên `/admin/orders/[id]` | Soft delete (set `deletedAt`), auto hoàn kho vật tư đã xuất (idempotent qua `refundedAt`). Confirm dialog liệt kê 3 hệ quả. Restore qua DB nếu nhầm |
 | Markup cost-rates | modal trong `/admin/cost-rates/new` + `[id]/edit` | Paste giá carrier → mở "Markup theo dải cân" → 9 dải EZWAY mặc định (0-5/5.5-10/10.5-15/15.5-20.5/21-44/45-99/100-299/300-499/500+) với %markup tinh chỉnh được → preview live bên phải (split 2 col) → apply vào form. Làm tròn 1k/5k/10k. localStorage cache ranges per service. MoneyInput thousand separator live `2.811.325` |
+| Hoá đơn điện tử (HDDT) — manual log | card trong `/admin/orders/[id]` + `/admin/invoices` | Option D: app KHÔNG tích hợp API EasyInvoice (Softdreams không có gói API ở tier user mua). Admin xuất HDDT tay trên portal → nhập số/mã/ngày/tiền vào app để tracking. 1 Order ↔ N InvoiceRecord (B2B chia HDDT). Badge "Đã xuất HDDT" trên Order detail. Page `/admin/invoices` 2 tab: "Cần xuất" (đơn DELIVERED/CLOSED chưa có HDDT) + "Đã xuất tháng X" (filter month). Excel export `/api/invoices/export?from=X&to=Y` cho kế toán cuối tháng. Sidebar badge số đơn pending. Có thể cancel/delete record nếu nhầm |
 | Kho vật tư | `/admin/supplies` | Nhập/Xuất/Kiểm kê + lịch sử |
 | Chi phí thành lập | `/admin/startup-expenses` | Tổng hợp + tự gợi ý nhóm theo từ khóa |
 | Tài khoản | `/admin/users` | CRUD tài khoản, gán role, đặt/reset mật khẩu (chỉ ADMIN) |
@@ -107,7 +108,7 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
 - ADMIN có nút "Bỏ đánh dấu" để revert khi cần (race condition guard).
 - Phase B (defer): browser automation, multi-carrier custom layouts.
 
-**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`, `add_sale_role_and_password`, `add_order_sales_user`, `add_google_auth_employee_profile`, `pickup_first`, `pickup_created_by`, `customer_sales_owner`, `add_payment_ar`, `stock_refund_marker`, `add_forwarder_processing`, `simplify_recipient_assignee`, `fix_cccd_pickup_ref`, `add_announcements`, `add_package_quantity_type`, `add_login_attempts` (19 tổng)
+**Migrations đã chạy:** `init_domain`, `add_warehouse`, `link_stock_to_order`, `add_startup_expenses`, `expense_categories_v2`, `add_sale_role_and_password`, `add_order_sales_user`, `add_google_auth_employee_profile`, `pickup_first`, `pickup_created_by`, `customer_sales_owner`, `add_payment_ar`, `stock_refund_marker`, `add_forwarder_processing`, `simplify_recipient_assignee`, `fix_cccd_pickup_ref`, `add_announcements`, `add_package_quantity_type`, `add_login_attempts`, `add_invoice_records` (20 tổng)
 
 **Form Order sale (mẫu khai hàng):**
 - Sale điền theo "FORM KHAI HÀNG MẪU" — đơn giản hoá, bỏ Phase A invoice items.
@@ -131,12 +132,12 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
 ## ⬜ Chưa làm / để sau
 
 ### Ưu tiên CAO
-- [ ] **HDDT integration EasyInvoice** — xuất hoá đơn điện tử từ Order detail
-      (chữ ký số + HDDT đã mua, provider EasyInvoice của Softdreams). User cần
-      liên hệ Softdreams bật gói tích hợp API → gửi App ID/Secret. **Việc tiếp theo.**
 - [ ] **Deploy production Vercel + Neon** — doc đã chuẩn bị (`docs/deploy-vercel-neon.md`).
       User cần đăng ký Vercel + Neon + domain → tao implement build script + migrate
-      data + smoke test. ~1-2 ngày.
+      data + smoke test. ~1-2 ngày. **Việc tiếp theo.**
+- [ ] **HDDT auto-API** (đợi 3x scale) — chuyển sang Viettel SInvoice/MISA khi đơn
+      vượt ~60-80/tháng (hiện 28/tháng × 5p gõ tay = 2.3h/tháng OK). Schema
+      InvoiceRecord giữ nguyên, chỉ thêm `provider + externalId` khi upgrade.
 
 ### Tạm hoãn
 - [ ] **Sepay Phase 2** — auto-reconcile chuyển khoản. Bị chặn vì Sepay Open
