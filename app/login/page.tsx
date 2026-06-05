@@ -40,10 +40,10 @@ export default async function LoginPage({ searchParams }: PageProps) {
             <Package2 className="h-6 w-6" aria-hidden />
           </span>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            EZWAY Ops
+            EZWAY
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Đăng nhập để vào hệ thống quản trị vận hành.
+          <p className="text-sm italic text-muted-foreground">
+            Moving Made Easy
           </p>
         </div>
 

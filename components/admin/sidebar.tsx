@@ -48,10 +48,10 @@ export function Sidebar({ className, onNavigate, role, badges }: SidebarProps) {
         </span>
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-semibold tracking-tight">
-            EZWAY Ops
+            EZWAY
           </span>
-          <span className="text-[11px] text-sidebar-foreground/60">
-            Quản trị vận hành
+          <span className="text-[11px] italic text-sidebar-foreground/60">
+            Moving Made Easy
           </span>
         </div>
       </div>
