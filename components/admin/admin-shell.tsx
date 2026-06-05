@@ -20,12 +20,14 @@ export function AdminShell({
   announcementUnread = 0,
   pendingInvites = 0,
   pendingInvoices = 0,
+  pendingSepay = 0,
 }: {
   children: React.ReactNode;
   user?: AdminShellUser | null;
   announcementUnread?: number;
   pendingInvites?: number;
   pendingInvoices?: number;
+  pendingSepay?: number;
 }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const closeMobile = React.useCallback(() => setMobileOpen(false), []);
@@ -34,6 +36,7 @@ export function AdminShell({
     "/admin/announcements": announcementUnread,
     "/admin/pending-invites": pendingInvites,
     "/admin/invoices": pendingInvoices,
+    "/admin/sepay": pendingSepay,
   };
 
   return (

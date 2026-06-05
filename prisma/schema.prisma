@@ -160,6 +160,14 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum SepayMatchStatus {
+  PENDING
+  MATCHED
+  UNMATCHED
+  AMBIGUOUS
+  IGNORED
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Models
 // ────────────────────────────────────────────────────────────────────────────
@@ -422,10 +430,11 @@ model Order {
   thirdPartyProviderUrl String?
   pickupRequest         PickupRequest?
 
-  payments       Payment[]
-  invoiceRecords InvoiceRecord[]
-  extraCosts     OrderExtraCost[]
-  stockMovements StockMovement[]
+  payments          Payment[]
+  invoiceRecords    InvoiceRecord[]
+  sepayTransactions SepayTransaction[] @relation("OrderSepayMatch")
+  extraCosts        OrderExtraCost[]
+  stockMovements    StockMovement[]
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -586,12 +595,54 @@ model Payment {
   recordedById String
   recordedBy   User   @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
 
+  /// Link 1-1 với giao dịch Sepay (nếu payment được tạo tự động từ webhook).
+  /// Null = ghi nhận tay.
+  sepayTransactionId String?           @unique
+  sepayTransaction   SepayTransaction? @relation(fields: [sepayTransactionId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([orderId, paidAt])
   @@index([recordedById, paidAt])
   @@map("payments")
+}
+
+/// Lưu mỗi webhook Sepay gửi về — bao gồm raw payload + kết quả match với Order.
+/// `sepayId` là idempotency key (Sepay có thể retry).
+model SepayTransaction {
+  id              String   @id @default(cuid())
+  /// ID Sepay gửi — dùng làm idempotency key.
+  sepayId         BigInt   @unique
+  /// STK nhận tiền (vd "6776088888" cho MB Bank EZWAY).
+  accountNumber   String
+  /// Tên ngân hàng (vd "MBBank").
+  bankBrandName   String?
+  /// "in" hoặc "out" — chỉ xử lý "in".
+  transferType    String
+  amountVnd       Int
+  /// Memo chuyển khoản (chứa mã đơn EZW-... khi khách quét VietQR động).
+  content         String
+  /// Mã đối soát ngân hàng (FT..., MBVCB...).
+  referenceCode   String?
+  transactionDate DateTime
+  receivedAt      DateTime @default(now())
+
+  /// Match result với Order:
+  matchStatus    SepayMatchStatus @default(PENDING)
+  matchedOrderId String?
+  matchedOrder   Order?           @relation("OrderSepayMatch", fields: [matchedOrderId], references: [id], onDelete: SetNull)
+  matchedAt      DateTime?
+  matchNotes     String?
+  /// Payment tự sinh từ giao dịch này (1-1; nếu admin xoá Payment → quay về UNMATCHED).
+  payment        Payment?
+
+  /// Raw payload từ Sepay (audit / debug).
+  rawPayload Json
+
+  @@index([accountNumber, transactionDate])
+  @@index([matchStatus, receivedAt])
+  @@map("sepay_transactions")
 }
 
 /// Hoá đơn điện tử (HDDT) ghi nhận thủ công sau khi admin xuất ở portal

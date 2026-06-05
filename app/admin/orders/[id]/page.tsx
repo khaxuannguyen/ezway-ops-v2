@@ -38,6 +38,8 @@ import {
   CancelInvoiceButton,
   DeleteInvoiceButton,
 } from "@/features/invoices/components/invoice-actions";
+import { listSepayTransactionsByOrder } from "@/features/sepay/queries";
+import { VietQRCard } from "@/features/sepay/components/vietqr-card";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
 import { formatDateTime, formatWeight, formatCurrencyVND, formatDate } from "@/lib/format";
@@ -77,6 +79,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
   const payments = await listPaymentsByOrder(order.id);
   const invoices = await listInvoicesByOrder(order.id);
+  const sepayTxs = await listSepayTransactionsByOrder(order.id);
   const remainingVnd = order.totalFeeVnd - order.paidVnd;
   const canManagePayments = user.role === "ADMIN" || user.role === "STAFF";
   const canManageForwarding = user.role === "ADMIN" || user.role === "STAFF";
@@ -516,9 +519,61 @@ export default async function OrderDetailPage({ params }: PageProps) {
             <PaymentsTable rows={payments} canManage={canManagePayments} />
           </div>
 
+          {remainingVnd > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">
+                {"QR thanh toán (khách quét — tự đối soát Sepay)"}
+              </p>
+              <VietQRCard orderCode={order.code} amountVnd={remainingVnd} />
+            </div>
+          ) : null}
+
+          {sepayTxs.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">
+                {"Giao dịch ngân hàng đã đối soát"}
+              </p>
+              <div className="overflow-hidden rounded-md border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>{"Thời gian"}</TableHead>
+                      <TableHead>{"Mã đối soát"}</TableHead>
+                      <TableHead>{"Memo"}</TableHead>
+                      <TableHead className="text-right">{"Số tiền"}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sepayTxs.map((tx) => (
+                      <TableRow key={tx.id}>
+                        <TableCell className="text-xs">
+                          {formatDateTime(tx.transactionDate)}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {tx.referenceCode ?? "—"}
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate text-xs">
+                          {tx.content}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <MoneyDisplay value={tx.amountVnd} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : null}
+
           {canManagePayments ? (
             <div className="rounded-md border border-dashed border-border p-4">
-              <p className="mb-3 text-sm font-medium">{"Ghi nhận thanh toán mới"}</p>
+              <p className="mb-3 text-sm font-medium">{"Ghi nhận thanh toán tay"}</p>
+              <p className="mb-3 text-xs text-muted-foreground">
+                {
+                  "Dành cho tiền mặt / COD / chuyển khoản không qua Sepay. Khoản chuyển khoản về STK MB sẽ tự ghi nhận khi memo chứa mã đơn."
+                }
+              </p>
               <PaymentForm
                 action={createPaymentAction}
                 submitLabel={"Ghi nhận"}

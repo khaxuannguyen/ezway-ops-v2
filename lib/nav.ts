@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Megaphone,
   PackageOpen,
+  QrCode,
   ReceiptText,
   Send,
   TrendingUp,
@@ -79,6 +80,7 @@ export const ADMIN_NAV: NavSection[] = [
       { href: "/admin/supplies", label: "Kho vật tư", icon: Warehouse, roles: OPS },
       { href: "/admin/drivers", label: "Tài xế", icon: Truck, roles: OPS },
       { href: "/admin/invoices", label: "Hoá đơn điện tử", icon: FileText, roles: OPS },
+      { href: "/admin/sepay", label: "Đối soát Sepay", icon: QrCode, roles: OPS },
     ],
   },
   {
