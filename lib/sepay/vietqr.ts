@@ -28,8 +28,8 @@ export function buildVietQRImageUrl(args: {
 
 /** Description chuẩn cho 1 Order — prefix + mã đơn sạch để regex match.
  *
- *  Format: "TT Cuoc Van Chuyen Quoc Te {mãĐơnSạch}"
- *  Ví dụ: "TT Cuoc Van Chuyen Quoc Te EZW2605310001"
+ *  Format: "TT Cuoc VC Quoc Te {mãĐơnSạch}"
+ *  Ví dụ: "TT Cuoc VC Quoc Te EZW2605310001"
  *
  *  KHÔNG có dấu tiếng Việt (banking app + Sepay process tốt hơn với ASCII).
  *  Match logic `extractOrderCodes` vẫn nhận diện được vì regex EZW(\d+)(\d+)
@@ -37,5 +37,5 @@ export function buildVietQRImageUrl(args: {
  */
 export function orderQrDescription(orderCode: string): string {
   const cleanCode = orderCode.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-  return `TT Cuoc Van Chuyen Quoc Te ${cleanCode}`;
+  return `TT Cuoc VC Quoc Te ${cleanCode}`;
 }
