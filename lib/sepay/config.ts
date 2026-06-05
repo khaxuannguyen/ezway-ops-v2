@@ -24,13 +24,15 @@ export function getSepayBankConfig(): SepayBankConfig {
 }
 
 /**
- * Trả về API key dùng để verify webhook Sepay (Authorization: Apikey ...).
+ * Secret key để verify HMAC-SHA256 signature của Sepay webhook.
+ * Sepay sign raw body + gửi qua header `X-SePay-Signature`.
+ * Cùng giá trị phải cấu hình tại my.sepay.vn → Webhook → Bảo mật → HMAC-SHA256.
  * Trống → webhook bị từ chối (401).
  */
-export function getSepayWebhookApiKey(): string {
-  const k = process.env.SEPAY_WEBHOOK_API_KEY?.trim() ?? "";
+export function getSepayWebhookSecret(): string {
+  const k = process.env.SEPAY_WEBHOOK_SECRET?.trim() ?? "";
   if (!k) {
-    throw new Error("Thiếu SEPAY_WEBHOOK_API_KEY trong .env.");
+    throw new Error("Thiếu SEPAY_WEBHOOK_SECRET trong .env.");
   }
   return k;
 }
