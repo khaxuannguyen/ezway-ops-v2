@@ -135,7 +135,11 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
 ### Ưu tiên CAO
 - [ ] **Deploy production Vercel + Neon** — doc đã chuẩn bị (`docs/deploy-vercel-neon.md`).
       User cần đăng ký Vercel + Neon + domain → tao implement build script + migrate
-      data + smoke test. ~1-2 ngày. **Việc tiếp theo.**
+      data + smoke test. ~1-2 ngày. **VIỆC TIẾP THEO.** Sepay webhook hiện
+      dùng Cloudflare Tunnel tạm (URL random) — deploy → URL stable cho Sepay.
+- [ ] **Sepay test thực tế chuyển khoản** — user MB app chuyển 5-10k vào
+      `6776088888` content `TT Cuoc VC Quoc Te EZW26050004` → verify auto
+      match + Payment auto. Sepay portal "Gửi thử" đã PASS HMAC. Cần test real.
 - [ ] **HDDT auto-API** (đợi 3x scale) — chuyển sang Viettel SInvoice/MISA khi đơn
       vượt ~60-80/tháng (hiện 28/tháng × 5p gõ tay = 2.3h/tháng OK). Schema
       InvoiceRecord giữ nguyên, chỉ thêm `provider + externalId` khi upgrade.
@@ -165,9 +169,9 @@ copy tay/đơn. Sau Phase A: 1-2 phút/đơn.
 - `.env` có ô `GOOGLE_CLIENT_ID/SECRET` (đang trống) — điền để bật đăng nhập Google.
 - Không làm "quên mật khẩu" qua email: dùng Google login (không mật khẩu) hoặc admin
   reset hộ. Đây là quyết định có chủ đích (xem `docs/profile-google-auth-plan.md`).
-- **Lỗ hổng kinh doanh (đã có UI Payment Phase 1 nhập tay):** thiếu auto-reconcile
-  qua webhook ngân hàng → Sepay Phase 2 là việc kế tiếp khi sẵn sàng. Sau khi có
-  Phase 2: doanh thu Sales Portal mới là tiền THỰC THU đúng nghĩa.
+- ~~**Lỗ hổng kinh doanh:** thiếu auto-reconcile~~ → **ĐÃ FIX** với Sepay Phase 2
+  (MB Bank) commit `8726dd0`. VietQR card trong Order detail, webhook auto match,
+  Payment auto-create. HMAC-SHA256 verified PASS qua Sepay portal "Gửi thử".
 - **Chống đá khách:** Customer.phone unique app-level (KHÔNG DB unique vì soft-delete).
   Inline tạo khách mới trong form Order cũng áp dụng dup-phone block (cùng action).
 - Next.js 16 + Turbopack: `revalidatePath` **KHÔNG được phép gọi trong render** của
