@@ -1,20 +1,20 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Input số tiền VNĐ với thousand separator live (theo `vi-VN`: `1.234.567`).
+ * Input s峄?ti峄乶 VN膼 v峄沬 thousand separator live (theo `vi-VN`: `1.234.567`).
  *
  * Behavior:
- *  - Hiển thị format khi gõ + onBlur
- *  - Lưu raw number qua hidden input `name` để form gửi giá trị thuần
- *  - Caret position cố gắng giữ đúng (best-effort) khi format reflow
+ *  - Hi峄僴 th峄?format khi g玫 + onBlur
+ *  - L瓢u raw number qua hidden input `name` 膽峄?form g峄璱 gi谩 tr峄?thu岷
+ *  - Caret position c峄?g岷痭g gi峄?膽煤ng (best-effort) khi format reflow
  *
- * Props chính:
- *  - `name`: tên field trong FormData (parent submit)
- *  - `defaultValue` / `value`: số VNĐ thuần (number hoặc string)
- *  - Các props HTML input khác đều forward
+ * Props ch铆nh:
+ *  - `name`: t锚n field trong FormData (parent submit)
+ *  - `defaultValue` / `value`: s峄?VN膼 thu岷 (number ho岷穋 string)
+ *  - C谩c props HTML input kh谩c 膽峄乽 forward
  */
 export interface MoneyInputProps
   extends Omit<
@@ -27,7 +27,6 @@ export interface MoneyInputProps
   onChangeValue?: (raw: number | null) => void;
 }
 
-const NBSP = " "; // thay dấu chấm "." để tránh user nhầm dấu thập phân (giải pháp khác: dùng "," như format en-US)
 const SEPARATOR = ".";
 
 function digitsOnly(s: string): string {
@@ -70,7 +69,7 @@ export const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
     );
     const [raw, setRaw] = React.useState<string>(initialDigits);
 
-    // Sync khi value (controlled) thay đổi từ ngoài.
+    // Sync khi value (controlled) thay 膽峄昳 t峄?ngo脿i.
     React.useEffect(() => {
       if (isControlled) {
         const d = digitsOnly(String(value ?? ""));
@@ -83,7 +82,7 @@ export const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
       const el = e.currentTarget;
       const beforeText = el.value;
       const beforeCaret = el.selectionStart ?? beforeText.length;
-      // Đếm số chữ số trước caret (ignore separator).
+      // 膼岷縨 s峄?ch峄?s峄?tr瓢峄沜 caret (ignore separator).
       const digitsBeforeCaret = digitsOnly(beforeText.slice(0, beforeCaret)).length;
 
       const newDigits = digitsOnly(beforeText);
@@ -105,7 +104,7 @@ export const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
         try {
           el.setSelectionRange(pos, pos);
         } catch {
-          // ignore (vd input type=number không support setSelectionRange)
+          // ignore (vd input type=number kh么ng support setSelectionRange)
         }
       });
     };
