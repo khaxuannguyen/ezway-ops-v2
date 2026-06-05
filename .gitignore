@@ -44,3 +44,8 @@ next-env.d.ts
 
 # claude code local tooling (skills, hooks) — not project code
 .claude/
+
+# DB dumps temp (chứa data thật, không commit)
+_ezway_data.sql
+_*.sql
+*.dump
