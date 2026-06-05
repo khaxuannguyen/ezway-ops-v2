@@ -26,9 +26,16 @@ export function buildVietQRImageUrl(args: {
   return `https://qr.sepay.vn/img?${params.toString()}`;
 }
 
-/** Description chuẩn cho 1 Order — uppercase + bỏ ký tự đặc biệt cho regex match. */
+/** Description chuẩn cho 1 Order — prefix + mã đơn sạch để regex match.
+ *
+ *  Format: "TT Cuoc Van Chuyen Quoc Te {mãĐơnSạch}"
+ *  Ví dụ: "TT Cuoc Van Chuyen Quoc Te EZW2605310001"
+ *
+ *  KHÔNG có dấu tiếng Việt (banking app + Sepay process tốt hơn với ASCII).
+ *  Match logic `extractOrderCodes` vẫn nhận diện được vì regex EZW(\d+)(\d+)
+ *  match substring trong content dài hơn.
+ */
 export function orderQrDescription(orderCode: string): string {
-  // Order.code dạng "EZW-260531-0001" → "EZW2605310001"
-  // Giữ ngắn để banking app không cắt content.
-  return orderCode.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  const cleanCode = orderCode.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  return `TT Cuoc Van Chuyen Quoc Te ${cleanCode}`;
 }

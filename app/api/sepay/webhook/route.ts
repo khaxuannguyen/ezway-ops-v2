@@ -36,28 +36,55 @@ export async function POST(request: Request) {
     );
   }
   const sigHeader = (request.headers.get("x-sepay-signature") ?? "").trim();
+  const timestamp = (request.headers.get("x-sepay-timestamp") ?? "").trim();
   if (!sigHeader) {
     return NextResponse.json(
       { success: false, message: "Missing X-SePay-Signature header." },
       { status: 401 }
     );
   }
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(rawBody)
-    .digest("hex");
-  let ok = false;
-  try {
-    ok =
-      sigHeader.length === expected.length &&
-      crypto.timingSafeEqual(
-        Buffer.from(sigHeader, "hex"),
-        Buffer.from(expected, "hex")
+
+  // Sepay format: `sha256={hex}` — strip prefix nếu có.
+  const sigHex = sigHeader.replace(/^sha256=/i, "");
+
+  // Build các candidate payload:
+  //  A. Raw body (simple)
+  //  B. timestamp + "." + raw body (Stripe-style anti-replay)
+  // Sepay docs không rõ — support cả 2 + 2 biến thể secret để robust.
+  const payloads = timestamp
+    ? [rawBody, `${timestamp}.${rawBody}`]
+    : [rawBody];
+  const secretVariants = [secret, secret.replace(/^whsec_/, "")];
+
+  const expectedHexs: string[] = [];
+  for (const p of payloads) {
+    for (const s of secretVariants) {
+      expectedHexs.push(
+        crypto.createHmac("sha256", s).update(p).digest("hex")
       );
-  } catch {
-    ok = false;
+    }
   }
+
+  const ok = expectedHexs.some((expected) => {
+    try {
+      return (
+        sigHex.length === expected.length &&
+        crypto.timingSafeEqual(
+          Buffer.from(sigHex, "hex"),
+          Buffer.from(expected, "hex")
+        )
+      );
+    } catch {
+      return false;
+    }
+  });
   if (!ok) {
+    console.warn("[sepay/webhook] signature mismatch", {
+      received: sigHex.slice(0, 24) + "...",
+      timestamp,
+      expectedVariants: expectedHexs.map((h) => h.slice(0, 24) + "..."),
+      bodyPreview: rawBody.slice(0, 200),
+    });
     return NextResponse.json(
       { success: false, message: "Invalid signature." },
       { status: 401 }
