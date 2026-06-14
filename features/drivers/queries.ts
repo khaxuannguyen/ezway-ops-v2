@@ -82,6 +82,36 @@ export async function listDrivers(
   };
 }
 
+export interface DriverLiteOption {
+  id: string;
+  name: string;
+  phone: string;
+  vehiclePlate: string | null;
+  vehicleType: VehicleType;
+}
+
+/** Dropdown gán tài xế trên pickup detail — chỉ driver active + không soft-delete. */
+export async function listActiveDriversLite(): Promise<DriverLiteOption[]> {
+  const rows = await prisma.driver.findMany({
+    where: { deletedAt: null, isActive: true },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      phone: true,
+      vehiclePlate: true,
+      vehicleType: true,
+      user: { select: { name: true } },
+    },
+  });
+  return rows.map((d) => ({
+    id: d.id,
+    name: d.user.name,
+    phone: d.phone,
+    vehiclePlate: d.vehiclePlate,
+    vehicleType: d.vehicleType,
+  }));
+}
+
 export async function getDriverById(id: string) {
   const d = await prisma.driver.findUnique({
     where: { id },

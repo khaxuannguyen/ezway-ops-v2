@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, requireRole } from "@/lib/auth";
 import { buildPickupCode } from "@/lib/codegen";
 import {
   computePackageWeights,
@@ -492,5 +492,81 @@ export async function updatePickupStatus(
     return { ok: true, data: { id } };
   } catch {
     return { ok: false, formError: "Không thể cập nhật trạng thái. Vui lòng thử lại." };
+  }
+}
+
+/**
+ * Gán/đổi/bỏ tài xế cho 1 pickup — inline action từ detail page.
+ * ADMIN/STAFF. Khi gán lần đầu (ASSIGNED → từ PENDING) → tự chuyển status
+ * sang ASSIGNED + log. Khi bỏ gán → giữ status hiện tại.
+ *
+ * `driverId` = empty string / null → bỏ gán.
+ */
+export async function assignPickupDriver(
+  pickupId: string,
+  driverId: string | null
+): Promise<ActionResult<{ id: string }>> {
+  const actor = await requireRole("ADMIN", "STAFF");
+  const nextDriverId = driverId && driverId.trim() !== "" ? driverId : null;
+
+  const existing = await prisma.pickupRequest.findUnique({
+    where: { id: pickupId },
+    select: { id: true, driverId: true, currentStatus: true },
+  });
+  if (!existing) {
+    return { ok: false, formError: "Không tìm thấy lệnh lấy hàng." };
+  }
+
+  // Validate driver tồn tại + active
+  if (nextDriverId) {
+    const driver = await prisma.driver.findUnique({
+      where: { id: nextDriverId },
+      select: { id: true, isActive: true },
+    });
+    if (!driver || !driver.isActive) {
+      return {
+        ok: false,
+        formError: "Tài xế không tồn tại hoặc đã ngưng hoạt động.",
+      };
+    }
+  }
+
+  if (existing.driverId === nextDriverId) {
+    return { ok: true, data: { id: pickupId } };
+  }
+
+  // Auto-flip status PENDING → ASSIGNED khi gán driver lần đầu.
+  const nextStatus =
+    nextDriverId && existing.currentStatus === "PENDING"
+      ? ("ASSIGNED" as const)
+      : existing.currentStatus;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.pickupRequest.update({
+        where: { id: pickupId },
+        data: { driverId: nextDriverId, currentStatus: nextStatus },
+      });
+      if (nextStatus !== existing.currentStatus) {
+        await recordPickupStatusChange(
+          tx,
+          pickupId,
+          existing.currentStatus,
+          nextStatus,
+          actor.id,
+          nextDriverId ? "Gán tài xế" : "Bỏ gán tài xế"
+        );
+      }
+    });
+    revalidatePath("/admin/pickups");
+    revalidatePath(`/admin/pickups/${pickupId}`);
+    revalidatePath("/driver");
+    return { ok: true, data: { id: pickupId } };
+  } catch (err) {
+    console.error("assignPickupDriver", err);
+    return {
+      ok: false,
+      formError: "Không thể gán tài xế. Vui lòng thử lại.",
+    };
   }
 }

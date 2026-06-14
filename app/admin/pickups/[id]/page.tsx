@@ -18,8 +18,10 @@ import {
 import { OrderStatusBadge } from "@/components/shared/order-status-badge";
 import { PickupStatusForm } from "@/features/pickups/components/pickup-status-form";
 import { PickupStatusTimeline } from "@/features/pickups/components/pickup-status-timeline";
+import { AssignDriverForm } from "@/features/pickups/components/assign-driver-form";
 import { getPickupById, listPickupStatusLogs } from "@/features/pickups/queries";
 import { updatePickupStatus } from "@/features/pickups/actions";
+import { listActiveDriversLite } from "@/features/drivers/queries";
 import { formatDateTime, formatWeight } from "@/lib/format";
 import { calculateOrderPackageTotals } from "@/lib/domain";
 import { PICKUP_STATUS_LABEL, PICKUP_STATUS_TONE } from "@/lib/enum-labels";
@@ -44,6 +46,8 @@ export default async function PickupDetailPage({ params }: PageProps) {
   if (isSale && pickup.createdById !== user.id) notFound();
   const statusAction = updatePickupStatus.bind(null, pickup.id);
   const statusLogs = await listPickupStatusLogs(pickup.id);
+  const canAssignDriver = user.role === "ADMIN" || user.role === "STAFF";
+  const driverOptions = canAssignDriver ? await listActiveDriversLite() : [];
 
   const totals = calculateOrderPackageTotals(
     pickup.packages.map((p) => ({
@@ -138,30 +142,47 @@ export default async function PickupDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {isSale ? "Trạng thái" : "Cập nhật trạng thái"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isSale ? (
-              <div className="space-y-2">
-                <Badge tone={PICKUP_STATUS_TONE[pickup.currentStatus]}>
-                  {PICKUP_STATUS_LABEL[pickup.currentStatus]}
-                </Badge>
-                <p className="text-xs text-muted-foreground">
-                  {"Quản trị viên cập nhật trạng thái và phân công tài xế."}
-                </p>
-              </div>
-            ) : (
-              <PickupStatusForm
-                current={pickup.currentStatus}
-                action={statusAction}
-              />
-            )}
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          {canAssignDriver ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{"Phân công tài xế"}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AssignDriverForm
+                  pickupId={pickup.id}
+                  currentDriverId={pickup.driver?.id ?? null}
+                  drivers={driverOptions}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {isSale ? "Trạng thái" : "Cập nhật trạng thái"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isSale ? (
+                <div className="space-y-2">
+                  <Badge tone={PICKUP_STATUS_TONE[pickup.currentStatus]}>
+                    {PICKUP_STATUS_LABEL[pickup.currentStatus]}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground">
+                    {"Quản trị viên cập nhật trạng thái và phân công tài xế."}
+                  </p>
+                </div>
+              ) : (
+                <PickupStatusForm
+                  current={pickup.currentStatus}
+                  action={statusAction}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Card>
