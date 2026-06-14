@@ -408,7 +408,7 @@ export async function updatePickupStatus(
     if (!actor) {
       return { ok: false, formError: "Phiên đăng nhập đã hết hạn." };
     }
-    // Chỉ ADMIN/STAFF đổi trạng thái — SALE chỉ tạo lệnh.
+    // SALE chỉ tạo lệnh, không đổi trạng thái.
     if (actor.role === "SALE") {
       return {
         ok: false,
@@ -418,7 +418,11 @@ export async function updatePickupStatus(
 
     const existing = await prisma.pickupRequest.findUnique({
       where: { id },
-      select: { id: true, currentStatus: true },
+      select: {
+        id: true,
+        currentStatus: true,
+        driver: { select: { userId: true } },
+      },
     });
     if (!existing) {
       return { ok: false, formError: "Không tìm thấy lệnh lấy hàng." };
@@ -426,6 +430,37 @@ export async function updatePickupStatus(
 
     const nextStatus = parsed.data.currentStatus;
     const note = normOpt(parsed.data.note);
+
+    // DRIVER: chỉ thao tác trên lệnh được gán cho mình + theo state machine.
+    if (actor.role === "DRIVER") {
+      if (existing.driver?.userId !== actor.id) {
+        return {
+          ok: false,
+          formError: "Lệnh này không được gán cho bạn.",
+        };
+      }
+      const { canDriverTransitionTo, allowedDriverTransitions } = await import(
+        "@/lib/domain/pickup-driver"
+      );
+      if (!canDriverTransitionTo(existing.currentStatus, nextStatus)) {
+        const allowed = allowedDriverTransitions(existing.currentStatus)
+          .map((t) => t.label)
+          .join(", ");
+        return {
+          ok: false,
+          formError: allowed
+            ? `Không thể chuyển sang trạng thái này. Cho phép: ${allowed}.`
+            : "Lệnh đã đóng, không còn thao tác.",
+        };
+      }
+      // FAILED bắt buộc có lý do
+      if (nextStatus === "FAILED" && !note) {
+        return {
+          ok: false,
+          fieldErrors: { note: ["Vui lòng nhập lý do không lấy được hàng."] },
+        };
+      }
+    }
 
     if (nextStatus === existing.currentStatus && !note) {
       // Không có gì để ghi nhận.
@@ -452,6 +487,8 @@ export async function updatePickupStatus(
 
     revalidatePath("/admin/pickups");
     revalidatePath(`/admin/pickups/${id}`);
+    revalidatePath("/driver");
+    revalidatePath(`/driver/pickups/${id}`);
     return { ok: true, data: { id } };
   } catch {
     return { ok: false, formError: "Không thể cập nhật trạng thái. Vui lòng thử lại." };

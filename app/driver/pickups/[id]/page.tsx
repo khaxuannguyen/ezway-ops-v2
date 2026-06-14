@@ -5,6 +5,7 @@ import { ArrowLeft, MapPin, Phone, User, Calendar } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getPickupById } from "@/features/pickups/queries";
+import { DriverStatusActions } from "@/features/pickups/components/driver-status-actions";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -165,9 +166,14 @@ export default async function DriverPickupDetailPage({ params }: PageProps) {
         </CardContent>
       </Card>
 
-      <p className="text-center text-xs text-muted-foreground">
-        {"Đổi trạng thái lệnh — quản trị viên xử lý từ trang admin."}
-      </p>
+      <Card>
+        <CardContent className="pt-6">
+          <DriverStatusActions
+            pickupId={pickup.id}
+            currentStatus={pickup.currentStatus}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
