@@ -42,7 +42,7 @@ export async function manualMatchSepayTransaction(
   sepayTxId: string,
   orderCode: string
 ): Promise<ActionResult<{ paymentId: string }>> {
-  const actor = await requireRole("ADMIN", "STAFF");
+  const actor = await requireRole("ADMIN");
   const code = orderCode.trim();
   if (!code) {
     return { ok: false, fieldErrors: { orderCode: ["Vui lòng nhập mã đơn."] } };
@@ -118,7 +118,7 @@ export async function manualMatchSepayTransaction(
 export async function ignoreSepayTransaction(
   sepayTxId: string
 ): Promise<ActionResult<{ id: string }>> {
-  const actor = await requireRole("ADMIN", "STAFF");
+  const actor = await requireRole("ADMIN");
   const tx = await prisma.sepayTransaction.findUnique({
     where: { id: sepayTxId },
     select: { matchStatus: true, payment: { select: { id: true } } },

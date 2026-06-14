@@ -37,7 +37,7 @@ export default async function AdminLayout({
     countUnreadForUser(user.id, user.role),
     user.role === "ADMIN" ? countPendingLoginAttempts() : Promise.resolve(0),
     isOps ? countOrdersWithoutInvoice() : Promise.resolve(0),
-    isOps ? countSepayPending() : Promise.resolve(0),
+    user.role === "ADMIN" ? countSepayPending() : Promise.resolve(0),
   ]);
   return (
     <AdminShell

@@ -55,7 +55,7 @@ interface PageProps {
 
 export default async function SepayPage({ searchParams }: PageProps) {
   const user = await requireUser();
-  if (user.role !== "ADMIN" && user.role !== "STAFF") {
+  if (user.role !== "ADMIN") {
     redirect("/admin/dashboard");
   }
   const sp = await searchParams;

@@ -113,6 +113,20 @@ export function UserForm({
                 </option>
               ))}
             </Select>
+            {role === "DRIVER" ? (
+              <p className="mt-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning-foreground">
+                {"⚠️ Sau khi tạo tài khoản, vào "}
+                <a
+                  href="/admin/drivers/new"
+                  className="font-medium underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {"/admin/drivers/new"}
+                </a>
+                {" để tạo hồ sơ tài xế (xe, SĐT) — driver portal mới hoạt động."}
+              </p>
+            ) : null}
           </Field>
           <Field
             label={"Trạng thái"}

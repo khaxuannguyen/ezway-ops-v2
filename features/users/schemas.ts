@@ -1,7 +1,9 @@
 import { z } from "zod";
 
-/** Role có thể gán tay trong module Tài khoản (DRIVER quản lý ở module Tài xế). */
-export const ASSIGNABLE_ROLES = ["ADMIN", "STAFF", "SALE"] as const;
+/** Role có thể gán tay trong form Tài khoản.
+ *  DRIVER: chỉ tạo User; phải vào /admin/drivers/new để tạo Driver record
+ *  (xe, SĐT) thì /driver portal mới hoạt động. UserForm có banner nhắc. */
+export const ASSIGNABLE_ROLES = ["ADMIN", "STAFF", "SALE", "DRIVER"] as const;
 export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 
 const nameField = z.string().trim().min(1, "Vui lòng nhập họ tên.");
